@@ -100,16 +100,16 @@ export default function PicksPage({ year, week, matchups }) {
 
   const handleSubmit = async () => {
     if (!user || submitted) return;
-  
+
     const name = user.isAnonymous
       ? guestName.trim()
       : userProfile?.displayName;
-  
+
     if (!name) {
       alert("Name is required.");
       return;
     }
-  
+
     try {
       const ref = doc(collection(db, "picks"), user.uid);
       await setDoc(
@@ -131,7 +131,6 @@ export default function PicksPage({ year, week, matchups }) {
       alert("Submission failed. Try again.");
     }
   };
-  
 
   const isSubmitDisabled =
     submitted ||
@@ -140,22 +139,22 @@ export default function PicksPage({ year, week, matchups }) {
     (user?.isAnonymous && guestName.trim() === "");
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <h1 className="text-3xl font-bold text-center mb-6">Week {week} Picks</h1>
+    <div className="max-w-5xl mx-auto px-4 py-6 bg-white dark:bg-gray-900 min-h-screen">
+      <h1 className="text-3xl font-bold text-center mb-6 text-gray-900 dark:text-white">Week {week} Picks</h1>
 
       {user?.isAnonymous ? (
         <div className="mb-6 text-center">
-          <label className="block text-sm font-medium mb-1">Enter your name (required):</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Enter your name (required):</label>
           <input
             type="text"
-            className="w-64 px-3 py-2 border border-gray-300 rounded"
+            className="w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-black dark:text-white"
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
             placeholder="Guest Name"
           />
         </div>
       ) : (
-        <div className="mb-6 text-center text-sm text-gray-700">
+        <div className="mb-6 text-center text-sm text-gray-700 dark:text-gray-300">
           Welcome, <span className="font-semibold">{userProfile?.displayName}</span>!
         </div>
       )}
@@ -168,7 +167,7 @@ export default function PicksPage({ year, week, matchups }) {
             onChange={() => setShowDetails(!showDetails)}
             className="accent-blue-600"
           />
-          <span className="text-blue-700 font-medium">Display Game Details</span>
+          <span className="text-blue-700 dark:text-blue-300 font-medium">Display Game Details</span>
         </label>
       </div>
 
@@ -178,9 +177,9 @@ export default function PicksPage({ year, week, matchups }) {
           return (
             <div
               key={game.eventId}
-              className="rounded-xl border border-gray-200 shadow-sm p-3 bg-white"
+              className="rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-3 bg-white dark:bg-gray-800"
             >
-              <div className="text-sm font-semibold text-center text-blue-600 mb-2">
+              <div className="text-sm font-semibold text-center text-blue-600 dark:text-blue-300 mb-2">
                 {new Date(game.gameDate).toLocaleString("en-US", {
                   weekday: "short",
                   month: "short",
@@ -191,7 +190,7 @@ export default function PicksPage({ year, week, matchups }) {
               </div>
 
               {showDetails && (
-                <div className="text-center text-xs text-gray-600 mb-2">
+                <div className="text-center text-xs text-gray-600 dark:text-gray-400 mb-2">
                   <div>Spread: {game.spread}</div>
                   <div>O/U: {game.overUnder}</div>
                 </div>
@@ -206,8 +205,8 @@ export default function PicksPage({ year, week, matchups }) {
                       onClick={() => handlePick(game.eventId, team.name)}
                       className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg border transition text-center ${
                         selected
-                          ? "border-blue-500 bg-blue-50 ring-2 ring-blue-400"
-                          : "border-gray-300 hover:bg-gray-50"
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900 ring-2 ring-blue-400"
+                          : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                       }`}
                     >
                       <Image
@@ -217,9 +216,9 @@ export default function PicksPage({ year, week, matchups }) {
                         height={32}
                         className="rounded"
                       />
-                      <div className="text-sm font-bold uppercase mt-1">{team.name}</div>
-                      <div className="text-xs text-gray-500">{team.record}</div>
-                      <div className="text-xs text-gray-400 italic">{team.isHome ? "Home" : "Away"}</div>
+                      <div className="text-sm font-bold uppercase mt-1 text-gray-900 dark:text-white">{team.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{team.record}</div>
+                      <div className="text-xs text-gray-400 italic dark:text-gray-500">{team.isHome ? "Home" : "Away"}</div>
                     </button>
                   );
                 })}
@@ -231,7 +230,7 @@ export default function PicksPage({ year, week, matchups }) {
 
       {/* Tie Breaker */}
       <div className="mt-10 max-w-md mx-auto">
-        <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 mb-2">
+        <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 dark:text-gray-200 mb-2">
           Tie Breaker — Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}
         </label>
         <input
@@ -239,7 +238,7 @@ export default function PicksPage({ year, week, matchups }) {
           id="tieBreaker"
           value={tieBreaker}
           onChange={(e) => setTieBreaker(e.target.value)}
-          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600"
           placeholder="Enter total combined score"
         />
       </div>
