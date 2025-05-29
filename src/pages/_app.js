@@ -1,39 +1,57 @@
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import BottomNav from "@/components/bottomnav";
 
 function MyApp({ Component, pageProps }) {
-  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const [theme, setTheme] = useState("light");
+  const [hasDisplayName, setHasDisplayName] = useState(false);
 
   useEffect(() => {
-    setMounted(true); // avoid hydration issues
+    const stored = localStorage.getItem("theme");
+    const initialTheme = stored === "dark" ? "dark" : "light";
+    setTheme(initialTheme);
+    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.add(initialTheme);
+  }, []);
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      let theme = "light";
-      if (user && !user.isAnonymous) {
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          theme = snap.data().theme || "light";
+          const data = snap.data();
+          const userTheme = data.theme || "light";
+          setTheme(userTheme);
+          document.documentElement.classList.remove("light", "dark");
+          document.documentElement.classList.add(userTheme);
+          localStorage.setItem("theme", userTheme);
+
+          // ✅ Check if displayName exists
+          setHasDisplayName(Boolean(data.displayName));
+        } else {
+          setHasDisplayName(false);
         }
+      } else {
+        setHasDisplayName(false);
       }
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(theme);
     });
 
-    return unsubscribe;
+    return unsub;
   }, []);
 
-  // Don't render until mounted (prevents hydration mismatch)
-  if (!mounted) return null;
+  const excludedRoutes = ["/", "/signin", "/guest"];
+    const showBottomNav = !excludedRoutes.includes(router.pathname) && hasDisplayName;
 
   return (
     <>
       <Component {...pageProps} />
-      <BottomNav />
+      {showBottomNav && <BottomNav />}
     </>
   );
 }

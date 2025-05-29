@@ -26,7 +26,7 @@ export default function HomePage() {
     try {
       const result = await signInAnonymously(auth);
       console.log("Signed in anonymously:", result.user.uid);
-      router.push("/profile");
+      router.push("/guest");
     } catch (err) {
       console.error("Guest sign-in failed:", err);
       alert("Guest sign-in failed");
