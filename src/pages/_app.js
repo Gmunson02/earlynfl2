@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import BottomNav from "@/components/bottomnav";
 
 function MyApp({ Component, pageProps }) {
   const [theme, setTheme] = useState("light");
@@ -30,7 +31,12 @@ function MyApp({ Component, pageProps }) {
     }
   }, [theme]);
 
-  return <Component {...pageProps} />;
+  return (
+    <>
+      <Component {...pageProps} />
+      <BottomNav />
+    </>
+  );
 }
 
 export default MyApp;

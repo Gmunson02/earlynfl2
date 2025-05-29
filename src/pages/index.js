@@ -1,158 +1,86 @@
-import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { auth } from "../lib/firebase";
 import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInAnonymously,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from "firebase/auth";
+import { useEffect, useState } from "react";
+import Head from "next/head";
+import Image from "next/image";
 
-export default function Home() {
-  const [user, setUser] = useState(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("signin");
-  const [error, setError] = useState("");
+export default function HomePage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    if (user && !user.isAnonymous) {
-      router.replace("/");
-    }
-  }, [user]);
-
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setError("");
-
+  const handleEmailSignIn = async () => {
+    setLoading(true);
     try {
-      if (mode === "signup") {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        router.push("/setup-profile");
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+      router.push("/profile");
     } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleGuestLogin = async () => {
-    try {
-      await signInAnonymously(auth);
-    } catch (err) {
-      setError("Failed to continue as guest.");
       console.error(err);
+      alert("Failed to sign in.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignOut = async () => {
-    await auth.signOut();
-    setUser(null);
+  const handleGuest = async () => {
+    setLoading(true);
+    try {
+      await auth.signInAnonymously();
+      router.push("/profile");
+    } catch (err) {
+      console.error(err);
+      alert("Guest sign-in failed");
+    } finally {
+      setLoading(false);
+    }
   };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md p-6 bg-white rounded-xl shadow">
-          <h2 className="text-xl font-bold mb-4">
-            {mode === "signup" ? "Create Account" : "Sign In"}
-          </h2>
-
-          {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            <input
-              type="email"
-              placeholder="Email"
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700"
-            >
-              {mode === "signup" ? "Sign Up" : "Sign In"}
-            </button>
-          </form>
-
-          <div className="mt-4 flex flex-col items-center space-y-2">
-            <button
-              className="text-sm text-blue-600 hover:underline"
-              onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
-            >
-              {mode === "signup"
-                ? "Already have an account? Sign In"
-                : "Don't have an account? Sign Up"}
-            </button>
-
-            <button
-              className="text-sm text-gray-600 hover:underline"
-              onClick={handleGuestLogin}
-            >
-              Or continue as Guest
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10">
-      <div className="max-w-2xl mx-auto bg-white shadow rounded-xl p-6">
-        <h1 className="text-2xl font-bold mb-4 text-center">
-          Welcome, {user.isAnonymous ? "Guest" : user.email}
-        </h1>
+    <div className="min-h-screen flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-gray-800 px-6 pb-24">
+      <Head>
+        <title>EarlyNFL | Pick 'Em Challenge</title>
+      </Head>
 
-        <div className="grid grid-cols-1 gap-4">
-          <DashboardLink href="/2025/1/picks" label="Make This Week’s Picks" />
-          <DashboardLink href="/scores/current" label="View Current Scores" />
-          <DashboardLink href="/scores/last-week" label="See Last Week’s Results" />
-          <DashboardLink href="/leaderboard" label="View Leaderboard" />
-          <DashboardLink href="/profile" label="View Your Profile" />
-        </div>
+      <h2 className="text-6xl sm:text-7xl font-extrabold tracking-tight text-white drop-shadow-md mb-6">
+        Early NFL
+      </h2>
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={handleSignOut}
-            className="text-sm text-red-600 hover:underline"
-          >
-            Sign Out
-          </button>
-        </div>
+      <div className="mb-6">
+        <Image
+          src="/David.png"
+          alt="Founder David Early"
+          width={300}
+          height={400}
+          className="rounded-full shadow-lg mx-auto w-[200px] h-auto sm:w-[350px]"
+        />
+      </div>
+
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800 dark:text-white mb-10">
+        Make Your Picks.
+        <br />
+        Dominate the Week.
+      </h1>
+
+      <div className="space-y-4 w-full max-w-sm">
+        <button
+          onClick={handleEmailSignIn}
+          disabled={loading}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow disabled:opacity-50"
+        >
+          Sign In / Up via Email
+        </button>
+
+        <button
+          onClick={handleGuest}
+          disabled={loading}
+          className="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium py-3 px-6 rounded-xl shadow"
+        >
+          Continue as Guest
+        </button>
       </div>
     </div>
-  );
-}
-
-function DashboardLink({ href, label }) {
-  const router = useRouter();
-
-  return (
-    <button
-      onClick={() => router.push(href)}
-      className="w-full text-left px-4 py-3 bg-blue-100 rounded-lg hover:bg-blue-200 transition"
-    >
-      {label}
-    </button>
   );
 }
