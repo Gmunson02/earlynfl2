@@ -60,7 +60,7 @@ export default function ProfilePage() {
             }, { merge: true });
 
             // ✅ Redirect to home/dashboard after save
-            router.push("/");
+            router.push("/dashboard");
         } catch (err) {
             setError("Failed to update profile.");
             console.error(err);

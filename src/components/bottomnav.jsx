@@ -5,34 +5,22 @@ import { useEffect, useState } from "react";
 
 export default function BottomNav() {
   const router = useRouter();
-  const [currentWeek, setCurrentWeek] = useState(null);
-  const [currentYear, setCurrentYear] = useState(null);
+  const [currentWeek, setCurrentWeek] = useState("1");
 
   useEffect(() => {
+    const seasonStart = new Date("2025-09-05");
     const today = new Date();
-    const startOfSeason = new Date(today.getFullYear(), 8, 1); // Sept 1
-    const weekNum = Math.max(
-      1,
-      Math.ceil((today - startOfSeason) / (7 * 24 * 60 * 60 * 1000))
-    );
-    setCurrentWeek(weekNum);
-    setCurrentYear(today.getFullYear());
+    const diff = Math.floor((today - seasonStart) / (1000 * 60 * 60 * 24));
+    const week = Math.max(1, Math.floor(diff / 7) + 1);
+    setCurrentWeek(week.toString());
   }, []);
 
   const navItems = [
-    { label: "Home", href: "/", icon: <Home size={22} /> },
-    {
-      label: "Picks",
-      href: currentYear && currentWeek ? `/${currentYear}/${currentWeek}/picks` : "#",
-      icon: <List size={22} />,
-    },
-    {
-      label: "Results",
-      href: currentYear && currentWeek ? `/${currentYear}/${currentWeek}/results` : "#",
-      icon: <Trophy size={22} />,
-    },
-    { label: "Leaderboard", href: "/leaderboard", icon: <BarChart2 size={22} /> },
-    { label: "Profile", href: "/profile", icon: <User size={22} /> },
+    { label: "Home", href: "/dashboard", icon: Home },
+    { label: "Picks", href: `/2025/${currentWeek}/picks`, icon: List },
+    { label: "Results", href: `/2025/${currentWeek}/results`, icon: Trophy },
+    { label: "Leaderboard", href: "/leaderboard", icon: BarChart2 },
+    { label: "Profile", href: "/profile", icon: User },
   ];
 
   return (
@@ -40,18 +28,27 @@ export default function BottomNav() {
       <ul className="flex justify-around items-center h-16">
         {navItems.map((item) => {
           const isActive = router.asPath === item.href;
+          const Icon = item.icon;
           return (
             <li key={item.label} className="flex flex-col items-center text-xs">
-              <Link
-                href={item.href}
-                className={`flex flex-col items-center ${
-                  isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-gray-500 dark:text-gray-400"
-                }`}
-              >
-                {item.icon}
-                <span className="mt-1 font-medium">{item.label}</span>
+              <Link href={item.href} className="flex flex-col items-center">
+                <Icon
+                  size={22}
+                  className={`$ {
+                    isActive
+                      ? "text-indigo-600 dark:text-indigo-400"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                />
+                <span
+                  className={`mt-1 $ {
+                    isActive
+                      ? "text-indigo-600 dark:text-indigo-400 font-medium"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {item.label}
+                </span>
               </Link>
             </li>
           );
