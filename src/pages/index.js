@@ -1,11 +1,7 @@
 import { useRouter } from "next/router";
 import { auth } from "../lib/firebase";
-import {
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-} from "firebase/auth";
-import { useEffect, useState } from "react";
+import { signInAnonymously } from "firebase/auth";
+import { useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 
@@ -19,7 +15,7 @@ export default function HomePage() {
       router.push("/signin");
     } catch (err) {
       console.error(err);
-      alert("Failed to sign in.");
+      alert("Failed to navigate to sign in.");
     } finally {
       setLoading(false);
     }
@@ -28,10 +24,11 @@ export default function HomePage() {
   const handleGuest = async () => {
     setLoading(true);
     try {
-      await auth.signInAnonymously();
+      const result = await signInAnonymously(auth);
+      console.log("Signed in anonymously:", result.user.uid);
       router.push("/profile");
     } catch (err) {
-      console.error(err);
+      console.error("Guest sign-in failed:", err);
       alert("Guest sign-in failed");
     } finally {
       setLoading(false);

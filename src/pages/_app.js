@@ -1,44 +1,34 @@
 import "../styles/globals.css";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import BottomNav from "@/components/bottomnav";
 
 function MyApp({ Component, pageProps }) {
-  const [theme, setTheme] = useState("light");
+  const [mounted, setMounted] = useState(false);
 
-  // ⚡ Immediately apply theme before render to avoid FOUC (flash of unstyled content)
-  useLayoutEffect(() => {
-    const stored = localStorage.getItem("theme");
-    const initialTheme = stored === "dark" ? "dark" : "light";
-    setTheme(initialTheme);
-    document.documentElement.classList.remove("light", "dark");
-    document.documentElement.classList.add(initialTheme);
-  }, []);
-
-  // 🎯 Reactively update theme if user logs in
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    setMounted(true); // avoid hydration issues
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      let theme = "light";
       if (user && !user.isAnonymous) {
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          const userTheme = snap.data().theme || "light";
-          setTheme(userTheme);
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(userTheme);
-          localStorage.setItem("theme", userTheme);
+          theme = snap.data().theme || "light";
         }
-      } else {
-        setTheme("light");
-        document.documentElement.classList.remove("light", "dark");
-        document.documentElement.classList.add("light");
-        localStorage.setItem("theme", "light");
       }
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(theme);
     });
-    return unsub;
+
+    return unsubscribe;
   }, []);
+
+  // Don't render until mounted (prevents hydration mismatch)
+  if (!mounted) return null;
 
   return (
     <>

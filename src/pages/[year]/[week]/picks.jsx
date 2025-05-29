@@ -1,15 +1,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../lib/firebase";
-import {
-  onAuthStateChanged
-} from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  collection
-} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, collection } from "firebase/firestore";
 import Image from "next/image";
 
 export async function getServerSideProps(context) {
@@ -57,7 +50,6 @@ export async function getServerSideProps(context) {
 export default function PicksPage({ year, week, matchups }) {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [guestName, setGuestName] = useState("");
   const [picks, setPicks] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -78,14 +70,12 @@ export default function PicksPage({ year, week, matchups }) {
         if (userSnap.exists()) {
           const profile = userSnap.data();
           setUserProfile(profile);
-
-          if (user.isAnonymous && docSnap.exists() && docSnap.data()[todayKey]?.guestName) {
-            setGuestName(docSnap.data()[todayKey].guestName);
-          }
         }
 
         if (docSnap.exists() && docSnap.data()[todayKey]) {
-          setPicks(docSnap.data()[todayKey]);
+          const pickData = docSnap.data()[todayKey];
+          setPicks(pickData);
+          setTieBreaker(pickData.tieBreaker || "");
           setSubmitted(true);
         }
       }
@@ -101,12 +91,10 @@ export default function PicksPage({ year, week, matchups }) {
   const handleSubmit = async () => {
     if (!user || submitted) return;
 
-    const name = user.isAnonymous
-      ? guestName.trim()
-      : userProfile?.displayName;
+    const name = userProfile?.displayName;
 
     if (!name) {
-      alert("Name is required.");
+      alert("Display name is required in your profile.");
       return;
     }
 
@@ -125,7 +113,7 @@ export default function PicksPage({ year, week, matchups }) {
       );
       setSubmitted(true);
       alert("Picks submitted!");
-      router.push("/"); // Redirect after submit
+      router.push("/dashboard");
     } catch (err) {
       console.error("Submission failed", err);
       alert("Submission failed. Try again.");
@@ -135,27 +123,15 @@ export default function PicksPage({ year, week, matchups }) {
   const isSubmitDisabled =
     submitted ||
     Object.keys(picks).length !== matchups.length ||
-    tieBreaker.trim() === "" ||
-    (user?.isAnonymous && guestName.trim() === "");
+    tieBreaker.trim() === "";
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 bg-white dark:bg-gray-900 min-h-screen">
+    <div className="max-w-5xl mx-auto px-4 py-6 pb-32 bg-white dark:bg-gray-900 min-h-screen">
       <h1 className="text-3xl font-bold text-center mb-6 text-gray-900 dark:text-white">Week {week} Picks</h1>
 
-      {user?.isAnonymous ? (
-        <div className="mb-6 text-center">
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Enter your name (required):</label>
-          <input
-            type="text"
-            className="w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-black dark:text-white"
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            placeholder="Guest Name"
-          />
-        </div>
-      ) : (
+      {userProfile?.displayName && (
         <div className="mb-6 text-center text-sm text-gray-700 dark:text-gray-300">
-          Welcome, <span className="font-semibold">{userProfile?.displayName}</span>!
+          Welcome, <span className="font-semibold">{userProfile.displayName}</span>!
         </div>
       )}
 
@@ -228,7 +204,6 @@ export default function PicksPage({ year, week, matchups }) {
         })}
       </div>
 
-      {/* Tie Breaker */}
       <div className="mt-10 max-w-md mx-auto">
         <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 dark:text-gray-200 mb-2">
           Tie Breaker — Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}
@@ -240,6 +215,7 @@ export default function PicksPage({ year, week, matchups }) {
           onChange={(e) => setTieBreaker(e.target.value)}
           className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600"
           placeholder="Enter total combined score"
+          disabled={submitted}
         />
       </div>
 

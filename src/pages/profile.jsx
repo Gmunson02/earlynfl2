@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth"; // ✅ include signOut
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function ProfilePage() {
@@ -20,10 +20,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user || user.isAnonymous) {
+      setUser(user);
+      if (!user) {
         router.replace("/");
       } else {
-        setUser(user);
         const ref = doc(db, "users", user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
@@ -34,6 +34,13 @@ export default function ProfilePage() {
             lastName: data.lastName || "",
             displayName: data.displayName || "",
             theme: data.theme || "light",
+          });
+        } else if (user.isAnonymous) {
+          setForm({
+            firstName: "",
+            lastName: "",
+            displayName: "",
+            theme: "light",
           });
         }
         setLoading(false);
@@ -54,14 +61,17 @@ export default function ProfilePage() {
 
     try {
       const ref = doc(db, "users", user.uid);
-      await setDoc(
-        ref,
-        {
-          ...form,
-          isGuest: false,
-        },
-        { merge: true }
-      );
+      const dataToSave = user.isAnonymous
+        ? {
+            displayName: form.displayName,
+            isGuest: true,
+          }
+        : {
+            ...form,
+            isGuest: false,
+          };
+
+      await setDoc(ref, dataToSave, { merge: true });
       router.push("/dashboard");
     } catch (err) {
       setError("Failed to update profile.");
@@ -87,43 +97,85 @@ export default function ProfilePage() {
 
         {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
-        <input
-          name="firstName"
-          type="text"
-          placeholder="First Name"
-          value={form.firstName}
-          onChange={handleChange}
-          required
-          className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-        />
-        <input
-          name="lastName"
-          type="text"
-          placeholder="Last Name"
-          value={form.lastName}
-          onChange={handleChange}
-          required
-          className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-        />
-        <input
-          name="displayName"
-          type="text"
-          placeholder="Display Name"
-          value={form.displayName}
-          onChange={handleChange}
-          required
-          className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-        />
+        {user?.isAnonymous ? (
+          <div>
+            <label htmlFor="displayName" className="block text-sm font-medium mb-1">
+              Display Name (for guests)
+            </label>
+            <input
+              id="displayName"
+              name="displayName"
+              type="text"
+              value={form.displayName}
+              onChange={handleChange}
+              required
+              className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+            />
+          </div>
+        ) : (
+          <>
+            <div>
+              <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+                First Name
+              </label>
+              <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                value={form.firstName}
+                onChange={handleChange}
+                required
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
 
-        <select
-          name="theme"
-          value={form.theme}
-          onChange={handleChange}
-          className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-        >
-          <option value="light">Light Mode</option>
-          <option value="dark">Dark Mode</option>
-        </select>
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+                Last Name
+              </label>
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                value={form.lastName}
+                onChange={handleChange}
+                required
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="displayName" className="block text-sm font-medium mb-1">
+                Display Name
+              </label>
+              <input
+                id="displayName"
+                name="displayName"
+                type="text"
+                value={form.displayName}
+                onChange={handleChange}
+                required
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="theme" className="block text-sm font-medium mb-1">
+                Theme Preference
+              </label>
+              <select
+                id="theme"
+                name="theme"
+                value={form.theme}
+                onChange={handleChange}
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              >
+                <option value="light">Light Mode</option>
+                <option value="dark">Dark Mode</option>
+              </select>
+            </div>
+          </>
+        )}
 
         <button
           type="submit"
