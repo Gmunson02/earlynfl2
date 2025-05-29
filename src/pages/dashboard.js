@@ -3,7 +3,17 @@ import { auth, db } from "../lib/firebase";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { Calendar, ClipboardList, Clock, Trophy, UserCircle } from "lucide-react";
+import {
+  Calendar,
+  ClipboardList,
+  Clock,
+  Trophy,
+  UserCircle,
+  TrendingUp,
+  Settings,
+  PlayCircle
+} from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Dashboard() {
   const [userName, setUserName] = useState("");
@@ -84,61 +94,101 @@ export default function Dashboard() {
     setLastWeekWinner(winner);
   };
 
+  const ActionButton = ({ onClick, icon: Icon, label, disabled = false }) => (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.05 } : {}}
+      whileTap={!disabled ? { scale: 0.97 } : {}}
+      onClick={onClick}
+      disabled={disabled}
+      className={`p-4 rounded-xl flex items-center gap-3 justify-start w-full text-left transition-all border border-zinc-200 dark:border-zinc-700 shadow-md backdrop-blur-md ${
+        disabled
+          ? "bg-zinc-300 text-zinc-500 cursor-not-allowed dark:bg-zinc-600 dark:text-zinc-400"
+          : "bg-white hover:bg-zinc-100 text-zinc-800 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white"
+      }`}
+    >
+      <Icon size={20} />
+      <span className="font-semibold">{label}</span>
+    </motion.button>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-white px-4 py-8">
+    <div className="min-h-screen bg-zinc-50 dark:bg-gradient-to-tr dark:from-gray-950 dark:to-gray-900 text-zinc-900 dark:text-white px-6 py-4 pb-32">
       <Head>
         <title>Dashboard | Early NFL</title>
       </Head>
 
-      <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 bg-opacity-80 dark:bg-opacity-80 backdrop-blur-md p-6 rounded-2xl shadow-xl">
-        <h1 className="text-4xl font-bold mb-4 text-center text-indigo-700 dark:text-indigo-300">Welcome, {userName}</h1>
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-4">
+          <h1 className="text-3xl font-extrabold flex items-center gap-2">
+            <UserCircle size={28} /> Welcome, {userName}!
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Ready to make your picks?</p>
+        </header>
 
-        <div className="text-center mb-6">
-          <p className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Week {currentWeek}</p>
-          <p className="text-lg text-gray-600 dark:text-gray-400">of the 2025 NFL Season</p>
-          <p className="mt-2 text-sm font-mono">Kickoff in: <span className="font-semibold">{countdown}</span></p>
-        </div>
-
-        {lastWeekWinner && (
-          <div className="text-center p-4 rounded-xl mb-6 border border-gray-300 dark:border-gray-700">
-            <p className="text-lg font-medium">Last Week's Winner:</p>
-            <p className="text-xl font-semibold text-indigo-600 dark:text-indigo-300">{lastWeekWinner.displayName}</p>
-            <p className="text-sm">with {lastWeekWinner.correct} correct picks</p>
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6"
+        >
+          <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+            <h2 className="text-sm sm:text-base font-semibold mb-1">Current Week</h2>
+            <p className="text-base sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">Week {currentWeek}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">NFL 2025 Season</p>
           </div>
-        )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button
+          <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+            <h2 className="text-sm sm:text-base font-semibold mb-1">Countdown</h2>
+            <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">{countdown}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">Until next kickoff</p>
+          </div>
+
+          {lastWeekWinner && (
+            <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+              <h2 className="text-sm sm:text-base font-semibold mb-1">Last Week's Winner</h2>
+              <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400">{lastWeekWinner.displayName}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">{lastWeekWinner.correct} correct picks</p>
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+        >
+          <ActionButton
             onClick={() => router.push(`/${2025}/${currentWeek}/picks`)}
-            className="p-5 bg-blue-600 text-white rounded-xl shadow-lg hover:scale-105 transform transition flex items-center justify-center gap-3"
-          >
-            <ClipboardList size={22} /> Make This Week's Picks
-          </button>
-          <button
+            icon={ClipboardList}
+            label="Manage Your Picks"
+          />
+          <ActionButton
             onClick={() => router.push(`/${2025}/${currentWeek}/results`)}
-            className="p-5 bg-indigo-600 text-white rounded-xl shadow-lg hover:scale-105 transform transition flex items-center justify-center gap-3"
-          >
-            <Calendar size={22} /> View This Week's Results
-          </button>
-          <button
+            icon={Calendar}
+            label="This Week’s Results"
+          />
+          <ActionButton
             disabled
-            className="p-5 bg-yellow-300 text-white rounded-xl shadow cursor-not-allowed flex items-center justify-center gap-3"
-          >
-            <Clock size={22} /> View Last Week's Results
-          </button>
-          <button
+            icon={Clock}
+            label="Last Week’s Results"
+          />
+          <ActionButton
+            onClick={() => router.push("/gamecenter")}
+            icon={PlayCircle}
+            label="Game Center"
+          />
+          <ActionButton
             onClick={() => router.push("/leaderboard")}
-            className="p-5 bg-purple-600 text-white rounded-xl shadow-lg hover:scale-105 transform transition flex items-center justify-center gap-3"
-          >
-            <Trophy size={22} /> View Leaderboard
-          </button>
-          <button
+            icon={TrendingUp}
+            label="Leaderboard"
+          />
+          <ActionButton
             onClick={() => router.push("/profile")}
-            className="p-5 bg-gray-800 text-white rounded-xl shadow-lg hover:scale-105 transform transition flex items-center justify-center gap-3"
-          >
-            <UserCircle size={22} /> View/Edit Profile
-          </button>
-        </div>
+            icon={Settings}
+            label="Your Profile"
+          />
+        </motion.section>
       </div>
     </div>
   );
