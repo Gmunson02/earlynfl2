@@ -174,7 +174,7 @@ export default function Dashboard() {
             label="Last Week’s Results"
           />
           <ActionButton
-            onClick={() => router.push("/gamecenter")}
+            onClick={() => router.push(`/${2025}/${currentWeek}/gamecenter`)}
             icon={PlayCircle}
             label="Game Center"
           />

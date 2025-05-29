@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, BarChart2, User } from "lucide-react";
+import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function BottomNav() {
@@ -19,8 +19,8 @@ export default function BottomNav() {
     { label: "Home", href: "/dashboard", icon: Home },
     { label: "Picks", href: `/2025/${currentWeek}/picks`, icon: List },
     { label: "Results", href: `/2025/${currentWeek}/results`, icon: Trophy },
-    { label: "Leaderboard", href: "/leaderboard", icon: BarChart2 },
-    { label: "Profile", href: "/profile", icon: User },
+    { label: "Game Center", href: `/2025/${currentWeek}/gamecenter`, icon: PlayCircle },
+    { label: "Settings", href: "/profile", icon: Settings },
   ];
 
   return (
@@ -34,18 +34,18 @@ export default function BottomNav() {
               <Link href={item.href} className="flex flex-col items-center">
                 <Icon
                   size={22}
-                  className={`$ {
+                  className={
                     isActive
                       ? "text-indigo-600 dark:text-indigo-400"
                       : "text-gray-500 dark:text-gray-400"
-                  }`}
+                  }
                 />
                 <span
-                  className={`mt-1 $ {
+                  className={
                     isActive
-                      ? "text-indigo-600 dark:text-indigo-400 font-medium"
-                      : "text-gray-500 dark:text-gray-400"
-                  }`}
+                      ? "mt-1 text-indigo-600 dark:text-indigo-400 font-medium"
+                      : "mt-1 text-gray-500 dark:text-gray-400"
+                  }
                 >
                   {item.label}
                 </span>
