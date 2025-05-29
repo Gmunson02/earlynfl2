@@ -21,7 +21,6 @@ export default function ScoresPage() {
     const fetchData = async () => {
       setLoading(true);
 
-      // 1. Get all user picks for this week
       const snapshot = await getDocs(collection(db, "picks"));
       const picks = [];
 
@@ -40,7 +39,6 @@ export default function ScoresPage() {
         }
       }
 
-      // 2. Fetch ESPN API data
       const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&year=${year}`;
       const res = await fetch(apiUrl);
       const data = await res.json();
@@ -57,6 +55,7 @@ export default function ScoresPage() {
           date: event.date,
           home,
           away,
+          status: event.status.type.state,
         };
 
         const competition = event.competitions[0];
@@ -89,34 +88,45 @@ export default function ScoresPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8">
       <Head>
         <title>Week {week} Scores</title>
       </Head>
-      <h1 className="text-2xl font-bold text-center mb-6">
-        Week {week}, {year} Leaderboard
-      </h1>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm border table-fixed">
-          <thead className="bg-gray-200">
+      <div className="max-w-full overflow-x-auto pb-28">
+        <table className="min-w-full text-sm border-collapse border border-gray-300 dark:border-zinc-700">
+          <thead className="bg-slate-800 text-white uppercase tracking-wide text-sm font-semibold shadow-sm">
             <tr>
-              <th className="text-left p-2 border w-36">User</th>
-              <th className="text-center border w-12">Wins</th>
+              <th className="p-3 border border-gray-300 text-left sticky left-0 z-10 bg-slate-800 rounded-tl-md">
+                User
+              </th>
+              <th className="p-3 border border-gray-300 text-center">
+                Wins
+              </th>
               {uniqueEventIDs.map((id) => (
-                <th key={id} className="text-center border w-24">
+                <th
+                  key={id}
+                  className="p-3 border border-gray-300 text-center whitespace-nowrap"
+                >
                   {eventMap[id].shortName}
                 </th>
               ))}
-              <th className="text-center border w-16">TB</th>
+              <th className="p-3 border border-gray-300 text-center bg-slate-800 rounded-tr-md">
+                TB
+              </th>
             </tr>
           </thead>
           <tbody>
             {submissions.map((entry) => (
-              <tr key={entry.uid} className="border-t">
-                <td className="p-2 font-medium border text-left bg-gray-50">
+              <tr
+                key={entry.uid}
+                className="odd:bg-green-50 even:bg-white dark:odd:bg-zinc-800 dark:even:bg-zinc-900"
+              >
+                <td className="p-2 border sticky left-0 bg-white dark:bg-gray-950 font-semibold z-10">
                   {entry.displayName}
                 </td>
-                <td className="text-center border bg-gray-50">{entry.winnerCount}</td>
+                <td className="p-2 border text-center bg-white dark:bg-gray-950 font-bold">
+                  {entry.winnerCount}
+                </td>
                 {uniqueEventIDs.map((eventID) => {
                   const pick = entry.picks.find((p) => p.eventID === eventID);
                   const correct = winners[eventID] === pick?.teamName;
@@ -125,29 +135,38 @@ export default function ScoresPage() {
                     game?.home.shortDisplayName === pick?.teamName
                       ? game.home
                       : game.away;
+                  const isPending = game.status !== "post";
+
+                  const bgColor = isPending
+                    ? "bg-yellow-100"
+                    : correct
+                    ? "bg-green-200"
+                    : "bg-red-200";
 
                   return (
-                    <td key={eventID} className="text-center border w-24">
+                    <td
+                      key={eventID}
+                      className={`text-center p-1 border ${bgColor}`}
+                    >
                       {pick ? (
-                        <div
-                          className={`flex items-center justify-center p-1 rounded-md ${
-                            correct ? "bg-green-100" : "bg-red-100"
-                          }`}
-                        >
-                          <Image
-                            src={team.logo}
-                            alt={team.shortDisplayName}
-                            width={30}
-                            height={30}
-                          />
-                        </div>
+                        <Image
+                          src={team.logo}
+                          alt={team.shortDisplayName}
+                          width={60}
+                          height={60}
+                          className="mx-auto"
+                        />
                       ) : (
-                        "-"
+                        <span className="text-gray-400">–</span>
                       )}
                     </td>
                   );
                 })}
-                <td className="text-center border bg-gray-50">{entry.tieBreaker}</td>
+                <td className="p-2 border text-center bg-white dark:bg-gray-950">
+                  <span className="text-xs text-gray-600 dark:text-gray-300">
+                    {entry.tieBreaker || "—"}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
