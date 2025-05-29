@@ -16,7 +16,7 @@ export default function HomePage() {
   const handleEmailSignIn = async () => {
     setLoading(true);
     try {
-      router.push("/profile");
+      router.push("/signin");
     } catch (err) {
       console.error(err);
       alert("Failed to sign in.");
@@ -44,9 +44,9 @@ export default function HomePage() {
         <title>EarlyNFL | Pick 'Em Challenge</title>
       </Head>
 
-      <h2 className="text-6xl sm:text-7xl font-extrabold tracking-tight text-white drop-shadow-md mb-6">
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800 dark:text-white mb-10">
         Early NFL
-      </h2>
+      </h1>
 
       <div className="mb-6">
         <Image
@@ -58,11 +58,11 @@ export default function HomePage() {
         />
       </div>
 
-      <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-800 dark:text-white mb-10">
+      <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-800 dark:text-white mb-10">
         Make Your Picks.
         <br />
         Dominate the Week.
-      </h1>
+      </h2>
 
       <div className="space-y-4 w-full max-w-sm">
         <button
