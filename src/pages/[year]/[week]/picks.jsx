@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import Image from "next/image";
 
-// Server-side fetch of matchups from ESPN API
 export async function getServerSideProps(context) {
   const { year, week } = context.query;
   const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&year=${year}`;
@@ -57,10 +56,13 @@ export async function getServerSideProps(context) {
 
 export default function PicksPage({ year, week, matchups }) {
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [guestName, setGuestName] = useState("");
   const [picks, setPicks] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [tieBreaker, setTieBreaker] = useState("");
+  const router = useRouter();
   const todayKey = `${year}-W${week}`;
   const lastGame = matchups[matchups.length - 1];
 
@@ -70,9 +72,20 @@ export default function PicksPage({ year, week, matchups }) {
       if (user) {
         const docRef = doc(db, "picks", user.uid);
         const docSnap = await getDoc(docRef);
+
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const profile = userSnap.data();
+          setUserProfile(profile);
+
+          if (user.isAnonymous && docSnap.exists() && docSnap.data()[todayKey]?.guestName) {
+            setGuestName(docSnap.data()[todayKey].guestName);
+          }
+        }
+
         if (docSnap.exists() && docSnap.data()[todayKey]) {
           setPicks(docSnap.data()[todayKey]);
-          setTieBreaker(docSnap.data()[todayKey].tieBreaker || "");
           setSubmitted(true);
         }
       }
@@ -87,24 +100,65 @@ export default function PicksPage({ year, week, matchups }) {
 
   const handleSubmit = async () => {
     if (!user || submitted) return;
+  
+    const name = user.isAnonymous
+      ? guestName.trim()
+      : userProfile?.displayName;
+  
+    if (!name) {
+      alert("Name is required.");
+      return;
+    }
+  
     try {
       const ref = doc(collection(db, "picks"), user.uid);
-      await setDoc(ref, { [todayKey]: { ...picks, tieBreaker } }, { merge: true });
+      await setDoc(
+        ref,
+        {
+          [todayKey]: {
+            ...picks,
+            tieBreaker,
+            displayName: name,
+          },
+        },
+        { merge: true }
+      );
       setSubmitted(true);
       alert("Picks submitted!");
+      router.push("/"); // Redirect after submit
     } catch (err) {
       console.error("Submission failed", err);
+      alert("Submission failed. Try again.");
     }
   };
+  
 
   const isSubmitDisabled =
     submitted ||
     Object.keys(picks).length !== matchups.length ||
-    tieBreaker.trim() === "";
+    tieBreaker.trim() === "" ||
+    (user?.isAnonymous && guestName.trim() === "");
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       <h1 className="text-3xl font-bold text-center mb-6">Week {week} Picks</h1>
+
+      {user?.isAnonymous ? (
+        <div className="mb-6 text-center">
+          <label className="block text-sm font-medium mb-1">Enter your name (required):</label>
+          <input
+            type="text"
+            className="w-64 px-3 py-2 border border-gray-300 rounded"
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder="Guest Name"
+          />
+        </div>
+      ) : (
+        <div className="mb-6 text-center text-sm text-gray-700">
+          Welcome, <span className="font-semibold">{userProfile?.displayName}</span>!
+        </div>
+      )}
 
       <div className="flex justify-center mb-4">
         <label className="flex items-center gap-2 text-sm">
@@ -175,7 +229,7 @@ export default function PicksPage({ year, week, matchups }) {
         })}
       </div>
 
-      {/* Tie Breaker Input */}
+      {/* Tie Breaker */}
       <div className="mt-10 max-w-md mx-auto">
         <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 mb-2">
           Tie Breaker — Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}
