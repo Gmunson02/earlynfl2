@@ -1,17 +1,15 @@
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import BottomNav from "@/components/bottomnav";
+import { auth, db } from "../lib/firebase";
 import Head from "next/head";
+import Layout from "@/components/Layout";
 
 function MyApp({ Component, pageProps }) {
-  const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [hasDisplayName, setHasDisplayName] = useState(false);
-  const [isReady, setIsReady] = useState(false); // 🆕 Indicates auth/data are loaded
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
@@ -41,15 +39,11 @@ function MyApp({ Component, pageProps }) {
         setHasDisplayName(false);
       }
 
-      setIsReady(true); // ✅ Now we’re ready to show the nav
+      setIsReady(true);
     });
 
     return unsub;
   }, []);
-
-  const excludedRoutes = ["/", "/signin", "/guest"];
-  const showBottomNav =
-    !excludedRoutes.includes(router.pathname) && hasDisplayName;
 
   return (
     <>
@@ -60,9 +54,11 @@ function MyApp({ Component, pageProps }) {
         />
       </Head>
 
-      <Component {...pageProps} />
-
-      {isReady && showBottomNav && <BottomNav />}
+      {isReady ? (
+        <Layout hasDisplayName={hasDisplayName}>
+          <Component {...pageProps} />
+        </Layout>
+      ) : null}
     </>
   );
 }

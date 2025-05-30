@@ -10,7 +10,7 @@ export default function BottomNav() {
   useEffect(() => {
     const seasonStart = new Date("2025-09-05");
     const today = new Date();
-    const diff = Math.floor((today.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
+    const diff = Math.floor((today - seasonStart) / (1000 * 60 * 60 * 24));
     const week = Math.max(1, Math.floor(diff / 7) + 1);
     setCurrentWeek(week.toString());
   }, []);
