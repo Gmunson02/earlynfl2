@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import BottomNav from "@/components/BottomNav";
+import BottomNav from "@/components/bottomnav";
 
 export default function Layout({ children, showBottomNav }) {
   return (
