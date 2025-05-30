@@ -24,13 +24,8 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm"
-      style={{
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <ul className="flex justify-around items-center h-16">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm min-h-[4rem] pb-[env(safe-area-inset-bottom)]">
+      <ul className="flex justify-around items-center h-full">
         {navItems.map((item) => {
           const isActive = router.asPath === item.href;
           const Icon = item.icon;
