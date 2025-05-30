@@ -100,11 +100,10 @@ export default function Dashboard() {
       whileTap={!disabled ? { scale: 0.97 } : {}}
       onClick={onClick}
       disabled={disabled}
-      className={`p-4 rounded-xl flex items-center gap-3 justify-start w-full text-left transition-all border border-zinc-200 dark:border-zinc-700 shadow-md backdrop-blur-md ${
-        disabled
+      className={`p-4 rounded-xl flex items-center gap-3 justify-start w-full text-left transition-all border border-zinc-200 dark:border-zinc-700 shadow-md backdrop-blur-md ${disabled
           ? "bg-zinc-300 text-zinc-500 cursor-not-allowed dark:bg-zinc-600 dark:text-zinc-400"
           : "bg-white hover:bg-zinc-100 text-zinc-800 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white"
-      }`}
+        }`}
     >
       <Icon size={20} />
       <span className="font-semibold">{label}</span>
@@ -119,9 +118,10 @@ export default function Dashboard() {
 
       <div className="max-w-5xl mx-auto">
         <header className="mb-4">
-          <h1 className="text-3xl font-extrabold flex items-center gap-2">
-            <UserCircle size={28} /> Welcome, {userName}!
+          <h1 className="text-3xl font-extrabold">
+            Hi, {userName}!
           </h1>
+
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Ready to make your picks?</p>
         </header>
 
