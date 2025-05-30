@@ -5,12 +5,13 @@ import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import BottomNav from "@/components/bottomnav";
-import Head from "next/head"; // ✅ import Head
+import Head from "next/head";
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [hasDisplayName, setHasDisplayName] = useState(false);
+  const [isReady, setIsReady] = useState(false); // 🆕 Indicates auth/data are loaded
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
@@ -39,17 +40,19 @@ function MyApp({ Component, pageProps }) {
       } else {
         setHasDisplayName(false);
       }
+
+      setIsReady(true); // ✅ Now we’re ready to show the nav
     });
 
     return unsub;
   }, []);
 
   const excludedRoutes = ["/", "/signin", "/guest"];
-  const showBottomNav = !excludedRoutes.includes(router.pathname) && hasDisplayName;
+  const showBottomNav =
+    !excludedRoutes.includes(router.pathname) && hasDisplayName;
 
   return (
     <>
-      {/* ✅ Add this */}
       <Head>
         <meta
           name="viewport"
@@ -58,7 +61,8 @@ function MyApp({ Component, pageProps }) {
       </Head>
 
       <Component {...pageProps} />
-      {showBottomNav && <BottomNav />}
+
+      {isReady && showBottomNav && <BottomNav />}
     </>
   );
 }
