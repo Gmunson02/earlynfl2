@@ -5,6 +5,7 @@ import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import BottomNav from "@/components/bottomnav";
+import Head from "next/head"; // ✅ import Head
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -31,8 +32,6 @@ function MyApp({ Component, pageProps }) {
           document.documentElement.classList.remove("light", "dark");
           document.documentElement.classList.add(userTheme);
           localStorage.setItem("theme", userTheme);
-
-          // ✅ Check if displayName exists
           setHasDisplayName(Boolean(data.displayName));
         } else {
           setHasDisplayName(false);
@@ -46,10 +45,18 @@ function MyApp({ Component, pageProps }) {
   }, []);
 
   const excludedRoutes = ["/", "/signin", "/guest"];
-    const showBottomNav = !excludedRoutes.includes(router.pathname) && hasDisplayName;
+  const showBottomNav = !excludedRoutes.includes(router.pathname) && hasDisplayName;
 
   return (
     <>
+      {/* ✅ Add this */}
+      <Head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+      </Head>
+
       <Component {...pageProps} />
       {showBottomNav && <BottomNav />}
     </>
