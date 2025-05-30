@@ -186,7 +186,7 @@ export default function Dashboard() {
           <ActionButton
             onClick={() => router.push("/profile")}
             icon={Settings}
-            label="Your Profile"
+            label="Settings"
           />
         </motion.section>
       </div>

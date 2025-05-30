@@ -3,6 +3,7 @@ import { auth, db } from "../lib/firebase";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/router";
@@ -12,11 +13,13 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [message, setMessage] = useState(null);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setMessage(null);
     try {
       if (isSignUp) {
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
@@ -32,6 +35,21 @@ export default function SignIn() {
       router.push("/dashboard");
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email to reset your password.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMessage("Password reset email sent. Please check your inbox.");
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setMessage(null);
     }
   };
 
@@ -58,7 +76,19 @@ export default function SignIn() {
             required
             className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
           />
+          <div className="text-right text-sm">
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-blue-500 hover:underline"
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {message && <p className="text-green-500 text-sm text-center">{message}</p>}
           <button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold"
@@ -67,10 +97,14 @@ export default function SignIn() {
           </button>
         </form>
         <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"} {" "}
+          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
             className="text-blue-500 hover:underline"
-            onClick={() => setIsSignUp(!isSignUp)}
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError(null);
+              setMessage(null);
+            }}
           >
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
