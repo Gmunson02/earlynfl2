@@ -10,7 +10,7 @@ export default function BottomNav() {
   useEffect(() => {
     const seasonStart = new Date("2025-09-05");
     const today = new Date();
-    const diff = Math.floor((today - seasonStart) / (1000 * 60 * 60 * 24));
+    const diff = Math.floor((today.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
     const week = Math.max(1, Math.floor(diff / 7) + 1);
     setCurrentWeek(week.toString());
   }, []);
@@ -24,7 +24,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-sm pb-[env(safe-area-inset-bottom)]">
       <ul className="flex justify-around items-center h-16">
         {navItems.map((item) => {
           const isActive = router.asPath === item.href;
