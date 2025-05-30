@@ -6,6 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import Head from "next/head";
 import Layout from "@/components/Layout";
+import { Toaster } from "react-hot-toast";
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -35,21 +36,20 @@ function MyApp({ Component, pageProps }) {
           localStorage.setItem("theme", userTheme);
           setHasDisplayName(Boolean(data.displayName));
         } else {
-          setHasDisplayName(false); // fallback for missing user data
+          setHasDisplayName(false);
         }
       } else {
-        setHasDisplayName(false); // guest user
+        setHasDisplayName(false);
       }
 
-      setIsReady(true); // ✅ Firebase finished loading
+      setIsReady(true);
     });
 
     return unsub;
   }, []);
 
   const excludedRoutes = ["/", "/signin", "/guest"];
-  const showBottomNav =
-    isReady && !excludedRoutes.includes(router.pathname);
+  const showBottomNav = isReady && !excludedRoutes.includes(router.pathname);
 
   return (
     <>
@@ -62,6 +62,15 @@ function MyApp({ Component, pageProps }) {
 
       <Layout showBottomNav={showBottomNav}>
         <Component {...pageProps} />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "#333",
+              color: "#fff",
+            },
+          }}
+        />
       </Layout>
     </>
   );

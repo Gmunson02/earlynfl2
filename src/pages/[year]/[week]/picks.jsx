@@ -57,6 +57,7 @@ export default function PicksPage({ year, week, matchups }) {
   const [showDetails, setShowDetails] = useState(false);
   const [tieBreaker, setTieBreaker] = useState("");
   const [submittedAt, setSubmittedAt] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const router = useRouter();
   const todayKey = `${year}-W${week}`;
   const lastGame = matchups[matchups.length - 1];
@@ -114,11 +115,9 @@ export default function PicksPage({ year, week, matchups }) {
       );
       setSubmitted(true);
       setSubmittedAt(now);
-      alert("Picks submitted!");
-      router.push("/dashboard");
+      setShowConfirmation(true); // 🎉 Modal instead of toast
     } catch (err) {
       console.error("Submission failed", err);
-      alert("Submission failed. Try again.");
     }
   };
 
@@ -241,7 +240,9 @@ export default function PicksPage({ year, week, matchups }) {
                       height={48}
                       className="rounded"
                     />
-                    <div className="text-sm font-bold uppercase mt-1 text-gray-900 dark:text-white">{team.name}</div>
+                    <div className="text-sm font-bold uppercase mt-1 text-gray-900 dark:text-white">
+                      {team.name}
+                    </div>
                     {showDetails && (
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {team.record} ({team.isHome ? "Home" : "Away"})
@@ -257,14 +258,15 @@ export default function PicksPage({ year, week, matchups }) {
 
       <div className="mt-10 max-w-md mx-auto">
         <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 dark:text-gray-200 mb-2">
-          Tie Breaker — Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}
+          <div className="text-lg font-semibold">Tie Breaker</div>
+          <div>Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}</div>
         </label>
         <input
           type="number"
           id="tieBreaker"
           value={tieBreaker}
           onChange={(e) => setTieBreaker(e.target.value)}
-          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600"
+          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           placeholder="Enter total combined score"
           disabled={submitted}
         />
@@ -281,6 +283,27 @@ export default function PicksPage({ year, week, matchups }) {
           {submitted ? "Picks Submitted" : "Submit Picks"}
         </button>
       </div>
+
+      {/* 🎉 Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-xl max-w-sm w-full text-center">
+            <div className="text-4xl mb-3">🎉</div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Your picks have been submitted!
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-5">
+              Good luck this week.
+            </p>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
