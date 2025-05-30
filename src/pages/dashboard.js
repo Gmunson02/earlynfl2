@@ -142,7 +142,7 @@ export default function Dashboard() {
           </div>
 
           <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
-            <h2 className="text-sm sm:text-base font-semibold mb-1">Countdown</h2>
+            <h2 className="text-sm sm:text-base font-semibold mb-1">Next Week Countdown</h2>
             <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">{countdown}</p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">Until next kickoff</p>
           </div>
