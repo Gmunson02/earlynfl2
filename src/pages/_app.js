@@ -1,12 +1,14 @@
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
 import Head from "next/head";
 import Layout from "@/components/Layout";
 
 function MyApp({ Component, pageProps }) {
+  const router = useRouter();
   const [theme, setTheme] = useState("light");
   const [hasDisplayName, setHasDisplayName] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -33,17 +35,21 @@ function MyApp({ Component, pageProps }) {
           localStorage.setItem("theme", userTheme);
           setHasDisplayName(Boolean(data.displayName));
         } else {
-          setHasDisplayName(false);
+          setHasDisplayName(false); // fallback for missing user data
         }
       } else {
-        setHasDisplayName(false);
+        setHasDisplayName(false); // guest user
       }
 
-      setIsReady(true);
+      setIsReady(true); // ✅ Firebase finished loading
     });
 
     return unsub;
   }, []);
+
+  const excludedRoutes = ["/", "/signin", "/guest"];
+  const showBottomNav =
+    isReady && !excludedRoutes.includes(router.pathname);
 
   return (
     <>
@@ -54,11 +60,9 @@ function MyApp({ Component, pageProps }) {
         />
       </Head>
 
-      {isReady ? (
-        <Layout hasDisplayName={hasDisplayName}>
-          <Component {...pageProps} />
-        </Layout>
-      ) : null}
+      <Layout showBottomNav={showBottomNav}>
+        <Component {...pageProps} />
+      </Layout>
     </>
   );
 }
