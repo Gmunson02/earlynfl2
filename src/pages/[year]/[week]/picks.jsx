@@ -164,11 +164,10 @@ export default function PicksPage({ year, week, matchups }) {
         <div className="flex justify-center mb-4">
           <button
             onClick={toggleLock}
-            className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${
-              hasUnlocked
+            className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${hasUnlocked
                 ? "bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border-blue-400"
                 : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600"
-            }`}
+              }`}
           >
             <Unlock size={16} />
             Unlock Picks
@@ -179,11 +178,10 @@ export default function PicksPage({ year, week, matchups }) {
       <div className="flex justify-center mb-4">
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${
-            showDetails
+          className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${showDetails
               ? "bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border-blue-400"
               : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600"
-          }`}
+            }`}
         >
           <Info size={16} />
           {showDetails ? "Hide Game Details" : "Show Game Details"}
@@ -226,11 +224,10 @@ export default function PicksPage({ year, week, matchups }) {
                   <button
                     key={team.id}
                     onClick={() => handlePick(game.eventId, team.name)}
-                    className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg border transition text-center ${
-                      selected
+                    className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg border transition text-center ${selected
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-900 ring-2 ring-blue-400"
                         : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    }`}
+                      }`}
                     disabled={submitted}
                   >
                     <Image
@@ -266,7 +263,7 @@ export default function PicksPage({ year, week, matchups }) {
           id="tieBreaker"
           value={tieBreaker}
           onChange={(e) => setTieBreaker(e.target.value)}
-          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           placeholder="Enter total combined score"
           disabled={submitted}
         />
@@ -276,9 +273,8 @@ export default function PicksPage({ year, week, matchups }) {
         <button
           onClick={handleSubmit}
           disabled={isSubmitDisabled}
-          className={`px-6 py-3 font-semibold text-white rounded-lg transition ${
-            isSubmitDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-          }`}
+          className={`px-6 py-3 font-semibold text-white rounded-lg transition ${isSubmitDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+            }`}
         >
           {submitted ? "Picks Submitted" : "Submit Picks"}
         </button>
