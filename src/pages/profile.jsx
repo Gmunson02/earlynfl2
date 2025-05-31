@@ -65,10 +65,12 @@ export default function ProfilePage() {
         displayName: form.displayName,
         theme: form.theme,
         isGuest: user.isAnonymous,
-        ...(user.isAnonymous ? {} : {
-          firstName: form.firstName,
-          lastName: form.lastName,
-        }),
+        ...(user.isAnonymous
+          ? {}
+          : {
+              firstName: form.firstName,
+              lastName: form.lastName,
+            }),
       };
 
       await setDoc(ref, dataToSave, { merge: true });
@@ -97,72 +99,70 @@ export default function ProfilePage() {
 
         {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
-        <>
-          <div>
-            <label htmlFor="displayName" className="block text-sm font-medium mb-1">
-              Display Name {user?.isAnonymous && "(for guests)"}
-            </label>
-            <input
-              id="displayName"
-              name="displayName"
-              type="text"
-              value={form.displayName}
-              onChange={handleChange}
-              required
-              className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-            />
-          </div>
+        <div>
+          <label htmlFor="displayName" className="block text-sm font-medium mb-1">
+            Display Name {user?.isAnonymous && "(for guests)"}
+          </label>
+          <input
+            id="displayName"
+            name="displayName"
+            type="text"
+            value={form.displayName}
+            onChange={handleChange}
+            required
+            className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+          />
+        </div>
 
-          <div>
-            <label htmlFor="theme" className="block text-sm font-medium mb-1">
-              Theme Preference
-            </label>
-            <select
-              id="theme"
-              name="theme"
-              value={form.theme}
-              onChange={handleChange}
-              className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-            >
-              <option value="light">Light Mode</option>
-              <option value="dark">Dark Mode</option>
-            </select>
-          </div>
+        {!user?.isAnonymous && (
+          <>
+            <div>
+              <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+                First Name
+              </label>
+              <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                value={form.firstName}
+                onChange={handleChange}
+                required
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
 
-          {!user?.isAnonymous && (
-            <>
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-medium mb-1">
-                  First Name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  value={form.firstName}
-                  onChange={handleChange}
-                  required
-                  className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+                Last Name
+              </label>
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                value={form.lastName}
+                onChange={handleChange}
+                required
+                className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
+              />
+            </div>
+          </>
+        )}
 
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-medium mb-1">
-                  Last Name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  value={form.lastName}
-                  onChange={handleChange}
-                  required
-                  className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-            </>
-          )}
-        </>
+        <div>
+          <label htmlFor="theme" className="block text-sm font-medium mb-1">
+            Theme Preference
+          </label>
+          <select
+            id="theme"
+            name="theme"
+            value={form.theme}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded bg-transparent dark:border-gray-600"
+          >
+            <option value="light">Light Mode</option>
+            <option value="dark">Dark Mode</option>
+          </select>
+        </div>
 
         <button
           type="submit"
