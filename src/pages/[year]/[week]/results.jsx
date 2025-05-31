@@ -4,6 +4,7 @@ import { db } from "../../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function ScoresPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function ScoresPage() {
   const [submissions, setSubmissions] = useState([]);
   const [eventMap, setEventMap] = useState({});
   const [winners, setWinners] = useState({});
+  const [showDetails, setShowDetails] = useState(false);
 
   const todayKey = `${year}-W${week}`;
 
@@ -69,10 +71,29 @@ export default function ScoresPage() {
         const winnerCount = entry.picks.filter(
           (pick) => winnerMap[pick.eventID] === pick.teamName
         ).length;
-        return { ...entry, winnerCount };
+        const gamesRemaining = entry.picks.filter(
+          (pick) => tempMap[pick.eventID]?.status !== "post"
+        ).length;
+        return { ...entry, winnerCount, gamesRemaining };
       });
 
-      setSubmissions(enriched.sort((a, b) => b.winnerCount - a.winnerCount));
+      enriched.sort((a, b) => b.winnerCount - a.winnerCount);
+      let lastWins = null;
+      let rank = 0;
+      let skip = 1;
+
+      const ranked = enriched.map((entry, index) => {
+        if (entry.winnerCount !== lastWins) {
+          rank += skip;
+          skip = 1;
+        } else {
+          skip++;
+        }
+        lastWins = entry.winnerCount;
+        return { ...entry, rank };
+      });
+
+      setSubmissions(ranked);
       setEventMap(tempMap);
       setWinners(winnerMap);
       setLoading(false);
@@ -87,88 +108,164 @@ export default function ScoresPage() {
     (a, b) => new Date(eventMap[a].date) - new Date(eventMap[b].date)
   );
 
+  const borderClass = showDetails ? "border-none" : "border border-gray-300";
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8">
       <Head>
         <title>Week {week} Scores</title>
       </Head>
+
+      <div className="mb-4 text-center">
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition"
+        >
+          {showDetails ? <EyeOff size={18} /> : <Eye size={18} />}
+          <span>{showDetails ? "Hide Picks" : "Show Picks"}</span>
+        </button>
+      </div>
+
       <div className="max-w-full overflow-x-auto pb-28">
-        <table className="min-w-full text-sm border-collapse border border-gray-300 dark:border-zinc-700">
+        <table className={`min-w-full text-sm border-collapse ${showDetails ? "" : "border border-gray-300"} table-auto`}>
           <thead className="bg-slate-800 text-white uppercase tracking-wide text-sm font-semibold shadow-sm">
             <tr>
-              <th className="p-3 border border-gray-300 text-left sticky left-0 z-10 bg-slate-800 rounded-tl-md">
+              {!showDetails && (
+                <th className={`px-2 py-0.5 text-center w-[40px] ${borderClass}`}>
+                  Rank
+                </th>
+              )}
+              <th
+                className={`px-2 py-0.5 text-left sticky left-0 z-10 bg-slate-800 font-semibold ${
+                  showDetails ? "min-w-[12rem]" : ""
+                } ${borderClass}`}
+              >
                 User
               </th>
-              <th className="p-3 border border-gray-300 text-center">
-                Wins
-              </th>
-              {uniqueEventIDs.map((id) => (
-                <th
-                  key={id}
-                  className="p-3 border border-gray-300 text-center whitespace-nowrap"
-                >
-                  {eventMap[id].shortName}
+              {!showDetails && (
+                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                  Total Wins
                 </th>
-              ))}
-              <th className="p-3 border border-gray-300 text-center bg-slate-800 rounded-tr-md">
-                TB
-              </th>
+              )}
+              {!showDetails && (
+                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                  Games Remaining
+                </th>
+              )}
+              {showDetails &&
+                uniqueEventIDs.map((id) => (
+                  <th
+                    key={id}
+                    className={`px-2 py-0.5 text-center text-xs whitespace-nowrap w-24 ${borderClass}`}
+                  >
+                    {eventMap[id].shortName}
+                  </th>
+                ))}
+              {showDetails && (
+                <th className={`px-2 py-0.5 text-center bg-slate-800 ${borderClass}`}>
+                  TB
+                </th>
+              )}
+              {!showDetails && (
+                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                  Win Probability
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {submissions.map((entry) => (
-              <tr
-                key={entry.uid}
-                className="odd:bg-green-50 even:bg-white dark:odd:bg-zinc-800 dark:even:bg-zinc-900"
-              >
-                <td className="p-2 border sticky left-0 bg-white dark:bg-gray-950 font-semibold z-10">
-                  {entry.displayName}
-                </td>
-                <td className="p-2 border text-center bg-white dark:bg-gray-950 font-bold">
-                  {entry.winnerCount}
-                </td>
-                {uniqueEventIDs.map((eventID) => {
-                  const pick = entry.picks.find((p) => p.eventID === eventID);
-                  const correct = winners[eventID] === pick?.teamName;
-                  const game = eventMap[eventID];
-                  const team =
-                    game?.home.shortDisplayName === pick?.teamName
-                      ? game.home
-                      : game.away;
-                  const isPending = game.status !== "post";
+            {submissions.map((entry, index) => {
+              const rowBg =
+                index % 2 === 0
+                  ? "bg-white dark:bg-zinc-900"
+                  : "bg-gray-50 dark:bg-zinc-800";
 
-                  const bgColor = isPending
-                    ? "bg-yellow-100"
-                    : correct
-                    ? "bg-green-200"
-                    : "bg-red-200";
-
-                  return (
-                    <td
-                      key={eventID}
-                      className={`text-center p-1 border ${bgColor}`}
-                    >
-                      {pick ? (
-                        <Image
-                          src={team.logo}
-                          alt={team.shortDisplayName}
-                          width={60}
-                          height={60}
-                          className="mx-auto"
-                        />
-                      ) : (
-                        <span className="text-gray-400">–</span>
-                      )}
+              return (
+                <tr key={entry.uid} className={rowBg}>
+                  {!showDetails && (
+                    <td className={`px-2 py-0.5 text-center font-bold w-[40px] ${borderClass}`}>
+                      {entry.rank}
                     </td>
-                  );
-                })}
-                <td className="p-2 border text-center bg-white dark:bg-gray-950">
-                  <span className="text-xs text-gray-600 dark:text-gray-300">
-                    {entry.tieBreaker || "—"}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  )}
+                  <td
+                    className={`px-2 py-0.5 sticky left-0 z-10 font-bold ${rowBg} ${
+                      showDetails ? "min-w-[12rem]" : ""
+                    } ${borderClass}`}
+                  >
+                    {showDetails ? (
+                      <>
+                        {entry.displayName}{" "}
+                        <span className="text-gray-500 font-normal">
+                          ({entry.winnerCount} wins)
+                        </span>
+                      </>
+                    ) : (
+                      entry.displayName
+                    )}
+                  </td>
+                  {!showDetails && (
+                    <td className={`px-2 py-0.5 text-center ${borderClass}`}>
+                      {entry.winnerCount}
+                    </td>
+                  )}
+                  {!showDetails && (
+                    <td className={`px-2 py-0.5 text-center ${borderClass}`}>
+                      {entry.gamesRemaining}
+                    </td>
+                  )}
+                  {showDetails &&
+                    uniqueEventIDs.map((eventID) => {
+                      const pick = entry.picks.find(
+                        (p) => p.eventID === eventID
+                      );
+                      const correct = winners[eventID] === pick?.teamName;
+                      const game = eventMap[eventID];
+                      const team =
+                        game?.home.shortDisplayName === pick?.teamName
+                          ? game.home
+                          : game.away;
+                      const isPending = game.status !== "post";
+
+                      const bgColor = isPending
+                        ? "bg-yellow-100"
+                        : correct
+                        ? "bg-green-200"
+                        : "bg-red-200";
+
+                      return (
+                        <td
+                          key={eventID}
+                          className={`text-center px-2 py-0.5 ${borderClass} ${bgColor} w-24`}
+                        >
+                          {pick ? (
+                            <Image
+                              src={team.logo}
+                              alt={team.shortDisplayName}
+                              width={50}
+                              height={50}
+                              className="mx-auto"
+                            />
+                          ) : (
+                            <span className="text-gray-400">–</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  {showDetails && (
+                    <td className={`px-2 py-0.5 text-center bg-white dark:bg-gray-950 ${borderClass}`}>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {entry.tieBreaker || "—"}
+                      </span>
+                    </td>
+                  )}
+                  {!showDetails && (
+                    <td className={`px-2 py-0.5 text-center text-gray-500 text-sm ${borderClass}`}>
+                      —
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
