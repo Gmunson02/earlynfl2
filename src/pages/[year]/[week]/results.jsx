@@ -82,7 +82,7 @@ export default function ScoresPage() {
       let rank = 0;
       let skip = 1;
 
-      const ranked = enriched.map((entry, index) => {
+      const ranked = enriched.map((entry) => {
         if (entry.winnerCount !== lastWins) {
           rank += skip;
           skip = 1;
@@ -128,27 +128,27 @@ export default function ScoresPage() {
 
       <div className="max-w-full overflow-x-auto pb-28">
         <table className={`min-w-full text-sm border-collapse ${showDetails ? "" : "border border-gray-300"} table-auto`}>
-          <thead className="bg-slate-800 text-white uppercase tracking-wide text-sm font-semibold shadow-sm">
+          <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
               {!showDetails && (
-                <th className={`px-2 py-0.5 text-center w-[40px] ${borderClass}`}>
+                <th className={`px-2 py-0.5 text-center font-bold w-[40px] ${borderClass}`}>
                   Rank
                 </th>
               )}
               <th
-                className={`px-2 py-0.5 text-left sticky left-0 z-10 bg-slate-800 font-semibold ${
-                  showDetails ? "min-w-[12rem]" : ""
+                className={`px-2 py-0.5 sticky left-0 z-10 bg-slate-800 font-bold ${
+                  showDetails ? "text-center min-w-[12rem]" : "text-left"
                 } ${borderClass}`}
               >
                 User
               </th>
               {!showDetails && (
-                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                <th className={`px-2 py-0.5 text-center font-bold ${borderClass}`}>
                   Total Wins
                 </th>
               )}
               {!showDetails && (
-                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                <th className={`px-2 py-0.5 text-center font-bold ${borderClass}`}>
                   Games Remaining
                 </th>
               )}
@@ -156,18 +156,18 @@ export default function ScoresPage() {
                 uniqueEventIDs.map((id) => (
                   <th
                     key={id}
-                    className={`px-2 py-0.5 text-center text-xs whitespace-nowrap w-24 ${borderClass}`}
+                    className={`px-2 py-0.5 text-center font-bold whitespace-nowrap w-24 ${borderClass}`}
                   >
                     {eventMap[id].shortName}
                   </th>
                 ))}
               {showDetails && (
-                <th className={`px-2 py-0.5 text-center bg-slate-800 ${borderClass}`}>
+                <th className={`px-2 py-0.5 text-center font-bold bg-slate-800 ${borderClass}`}>
                   TB
                 </th>
               )}
               {!showDetails && (
-                <th className={`px-2 py-0.5 text-center ${borderClass}`}>
+                <th className={`px-2 py-0.5 text-center font-bold ${borderClass}`}>
                   Win Probability
                 </th>
               )}
