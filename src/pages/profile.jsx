@@ -1,11 +1,15 @@
+// pages/profile.js
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useTheme } from "next-themes";
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { setTheme } = useTheme();
+
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({
@@ -19,43 +23,53 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (!user) {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (!u) {
         router.replace("/");
-      } else {
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setProfile(data);
-          setForm({
-            firstName: data.firstName || "",
-            lastName: data.lastName || "",
-            displayName: data.displayName || "",
-            theme: data.theme || "light",
-          });
-        } else {
-          setForm({
-            firstName: "",
-            lastName: "",
-            displayName: "",
-            theme: "light",
-          });
-        }
-        setLoading(false);
+        return;
       }
+
+      const ref = doc(db, "users", u.uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile(data);
+        setForm({
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          displayName: data.displayName || "",
+          theme: data.theme || "light",
+        });
+        // Ensure the app reflects the currently saved theme on load
+        if (data?.theme === "light" || data?.theme === "dark") {
+          setTheme(data.theme);
+        }
+      } else {
+        setForm({
+          firstName: "",
+          lastName: "",
+          displayName: "",
+          theme: "light",
+        });
+      }
+
+      setLoading(false);
     });
+
     return unsub;
-  }, []);
+  }, [router, setTheme]);
 
   const handleChange = (e) => {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value })); // no theme preview here
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!user) return;
+
     setSaving(true);
     setError("");
 
@@ -74,10 +88,16 @@ export default function ProfilePage() {
       };
 
       await setDoc(ref, dataToSave, { merge: true });
+
+      // Apply theme only after saving so nothing changes until Save
+      if (form.theme === "light" || form.theme === "dark") {
+        setTheme(form.theme);
+      }
+
       router.push("/dashboard");
     } catch (err) {
-      setError("Failed to update profile.");
       console.error(err);
+      setError("Failed to update profile.");
       setSaving(false);
     }
   };
@@ -148,21 +168,21 @@ export default function ProfilePage() {
           </>
         )}
 
-        <div>
-          <label htmlFor="theme" className="block text-sm font-medium mb-1">
-            Theme Preference
-          </label>
-          <select
-            id="theme"
-            name="theme"
-            value={form.theme}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded bg-transparent dark:border-gray-600"
-          >
-            <option value="light">Light Mode</option>
-            <option value="dark">Dark Mode</option>
-          </select>
-        </div>
+<div>
+  <label htmlFor="theme" className="block text-sm font-medium mb-1">
+    Theme Preference
+  </label>
+  <select
+  id="theme"
+  name="theme"
+  value={form.theme}
+  onChange={handleChange}
+  className="w-full border px-3 py-2 rounded bg-transparent dark:bg-transparent dark:border-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+  <option value="light">Light Mode</option>
+  <option value="dark">Dark Mode</option>
+</select>
+</div>
 
         <button
           type="submit"

@@ -1,3 +1,4 @@
+// pages/_app.js
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -5,20 +6,20 @@ import Head from "next/head";
 import Layout from "@/components/Layout";
 import { Toaster } from "react-hot-toast";
 
-import { auth, db } from "../lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { ThemeProvider, useTheme } from "next-themes";
 
-// ✅ Only here: set Firebase Auth persistence on mount
+import { auth, db } from "../lib/firebase";
 import {
+  onAuthStateChanged,
   setPersistence,
   indexedDBLocalPersistence,
   browserLocalPersistence,
 } from "firebase/auth";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
-function MyApp({ Component, pageProps }) {
+function AppInner({ Component, pageProps }) {
   const router = useRouter();
-  const [theme, setTheme] = useState("light");
+  const { setTheme } = useTheme();
   const [hasDisplayName, setHasDisplayName] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
@@ -31,52 +32,69 @@ function MyApp({ Component, pageProps }) {
     }
   }, []);
 
-  // ✅ Set Firebase persistence (browser only)
+  // Firebase Auth persistence (browser only)
   useEffect(() => {
-    // Next.js ensures this runs client-side, but keep it simple
     setPersistence(auth, indexedDBLocalPersistence)
       .catch(() => setPersistence(auth, browserLocalPersistence))
       .catch(() => {});
   }, []);
 
-  // Theme bootstrap from localStorage
+  // Live theme + profile sync
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    const initialTheme = stored === "dark" ? "dark" : "light";
-    setTheme(initialTheme);
-    document.documentElement.classList.remove("light", "dark");
-    document.documentElement.classList.add(initialTheme);
-  }, []);
+    let unsubDoc = null;
 
-  // Sync theme + displayName from Firestore when signed in
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const ref = doc(db, "users", user.uid);
-          const snap = await getDoc(ref);
-          if (snap.exists()) {
-            const data = snap.data();
-            const userTheme = data.theme || "light";
-            setTheme(userTheme);
-            document.documentElement.classList.remove("light", "dark");
-            document.documentElement.classList.add(userTheme);
-            localStorage.setItem("theme", userTheme);
-            setHasDisplayName(Boolean(data.displayName));
-          } else {
-            setHasDisplayName(false);
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      // clean up any previous doc listener when user changes
+      if (unsubDoc) {
+        unsubDoc();
+        unsubDoc = null;
+      }
+
+      if (!user) {
+        setHasDisplayName(false);
+        setIsReady(true);
+        return;
+      }
+
+      const ref = doc(db, "users", user.uid);
+
+      // set initial values once (optional but snappy)
+      try {
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data?.theme === "dark" || data?.theme === "light") {
+            setTheme(data.theme);
           }
-        } catch {
+          setHasDisplayName(Boolean(data?.displayName));
+        } else {
           setHasDisplayName(false);
         }
-      } else {
-        setHasDisplayName(false);
+      } finally {
+        setIsReady(true);
       }
-      setIsReady(true);
+
+      // then subscribe for live updates
+      unsubDoc = onSnapshot(
+        ref,
+        (snap) => {
+          const data = snap.data();
+          if (data?.theme === "dark" || data?.theme === "light") {
+            setTheme(data.theme); // updates instantly if doc changes anywhere
+          }
+          setHasDisplayName(Boolean(data?.displayName));
+        },
+        () => {
+          // ignore errors for now; keep app usable
+        }
+      );
     });
 
-    return unsub;
-  }, []);
+    return () => {
+      if (unsubDoc) unsubDoc();
+      unsubAuth();
+    };
+  }, [setTheme]);
 
   const excludedRoutes = ["/", "/signin", "/guest"];
   const showBottomNav = isReady && !excludedRoutes.includes(router.pathname);
@@ -103,4 +121,10 @@ function MyApp({ Component, pageProps }) {
   );
 }
 
-export default MyApp;
+export default function MyApp(props) {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <AppInner {...props} />
+    </ThemeProvider>
+  );
+}
