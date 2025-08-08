@@ -1,12 +1,20 @@
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { auth, db } from "../lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
 import Head from "next/head";
 import Layout from "@/components/Layout";
 import { Toaster } from "react-hot-toast";
+
+import { auth, db } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+
+// ✅ Only here: set Firebase Auth persistence on mount
+import {
+  setPersistence,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+} from "firebase/auth";
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -14,7 +22,7 @@ function MyApp({ Component, pageProps }) {
   const [hasDisplayName, setHasDisplayName] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  // 🔹 Register SW once on mount
+  // Register the Service Worker once on mount (PWA)
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
@@ -23,28 +31,42 @@ function MyApp({ Component, pageProps }) {
     }
   }, []);
 
+  // ✅ Set Firebase persistence (browser only)
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
+    // Next.js ensures this runs client-side, but keep it simple
+    setPersistence(auth, indexedDBLocalPersistence)
+      .catch(() => setPersistence(auth, browserLocalPersistence))
+      .catch(() => {});
+  }, []);
+
+  // Theme bootstrap from localStorage
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
     const initialTheme = stored === "dark" ? "dark" : "light";
     setTheme(initialTheme);
     document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(initialTheme);
   }, []);
 
+  // Sync theme + displayName from Firestore when signed in
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const ref = doc(db, "users", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          const userTheme = data.theme || "light";
-          setTheme(userTheme);
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(userTheme);
-          localStorage.setItem("theme", userTheme);
-          setHasDisplayName(Boolean(data.displayName));
-        } else {
+        try {
+          const ref = doc(db, "users", user.uid);
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const data = snap.data();
+            const userTheme = data.theme || "light";
+            setTheme(userTheme);
+            document.documentElement.classList.remove("light", "dark");
+            document.documentElement.classList.add(userTheme);
+            localStorage.setItem("theme", userTheme);
+            setHasDisplayName(Boolean(data.displayName));
+          } else {
+            setHasDisplayName(false);
+          }
+        } catch {
           setHasDisplayName(false);
         }
       } else {
