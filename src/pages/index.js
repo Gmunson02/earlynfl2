@@ -1,13 +1,33 @@
 import { useRouter } from "next/router";
 import { auth } from "../lib/firebase";
-import { signInAnonymously } from "firebase/auth";
-import { useState } from "react";
+import {
+  onAuthStateChanged,
+  signInAnonymously
+} from "firebase/auth";
+import { useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false); // gate rendering until we know auth state
+
+  // ✅ If already signed in, skip the landing page entirely
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setHydrated(true);
+      if (user) {
+        // Choose where signed-in users should land:
+        // - If you want different paths for guests vs. email users, branch here.
+        const target = user.isAnonymous ? "/guest" : "/app"; // <-- change "/app" to your real route
+        if (router.pathname !== target) {
+          router.replace(target);
+        }
+      }
+    });
+    return unsub;
+  }, [router]);
 
   const handleEmailSignIn = async () => {
     setLoading(true);
@@ -24,6 +44,14 @@ export default function HomePage() {
   const handleGuest = async () => {
     setLoading(true);
     try {
+      // ✅ If already signed in, don't create a new anonymous user
+      const u = auth.currentUser;
+      if (u) {
+        const target = u.isAnonymous ? "/guest" : "/app"; // <-- change "/app"
+        router.push(target);
+        return;
+      }
+      // Otherwise, create one anonymous session
       const result = await signInAnonymously(auth);
       console.log("Signed in anonymously:", result.user.uid);
       router.push("/guest");
@@ -34,6 +62,9 @@ export default function HomePage() {
       setLoading(false);
     }
   };
+
+  // Avoid flashing the landing screen before we know auth state
+  if (!hydrated) return null;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-gray-800 px-6 pb-24">
