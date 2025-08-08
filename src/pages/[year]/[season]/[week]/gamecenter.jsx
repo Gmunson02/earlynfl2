@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import { useEffect, useMemo, useState } from "react";
 import { LazyMotion, domAnimation, m as motion } from "framer-motion";
-import { Calendar } from "lucide-react";
+import { Calendar, RefreshCw } from "lucide-react";
 import Image from "next/image";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
@@ -20,6 +20,8 @@ export default function GameCenter() {
 
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reloadTick, setReloadTick] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   // Reuse a single formatter instance
   const timeFmt = useMemo(
@@ -33,49 +35,61 @@ export default function GameCenter() {
     []
   );
 
+  const fetchGames = async (signal) => {
+    setLoading(true);
+    try {
+      const stype = TYPE_MAP[season]; // 1/2/3
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?year=${year}&week=${week}&seasontype=${stype}`;
+      const res = await fetch(url, { signal, cache: "no-store" });
+      const data = await res.json();
+      const events = Array.isArray(data?.events) ? data.events : [];
+
+      const stateRank = (evt) => {
+        const st = evt?.competitions?.[0]?.status?.type?.state;
+        if (st === "pre") return 0;
+        if (st === "in") return 1;
+        if (st === "post") return 2;
+        return 3;
+      };
+
+      const sorted = events.slice().sort((a, b) => {
+        const sa = stateRank(a);
+        const sb = stateRank(b);
+        if (sa !== sb) return sa - sb;
+        return new Date(a.date) - new Date(b.date);
+      });
+
+      setGames(sorted);
+      setLastUpdated(new Date());
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error("Failed to load games", err);
+      }
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!router.isReady || !year || !week) return;
 
     const controller = new AbortController();
-    const { signal } = controller;
+    fetchGames(controller.signal);
 
-    const fetchGames = async () => {
-      setLoading(true);
-      try {
-        const stype = TYPE_MAP[season]; // 1/2/3
-        const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?year=${year}&week=${week}&seasontype=${stype}`;
-        const res = await fetch(url, { signal, cache: "no-store" });
-        const data = await res.json();
-        const events = Array.isArray(data?.events) ? data.events : [];
-
-        const stateRank = (evt) => {
-          const st = evt?.competitions?.[0]?.status?.type?.state;
-          if (st === "pre") return 0;
-          if (st === "in") return 1;
-          if (st === "post") return 2;
-          return 3;
-        };
-
-        const sorted = events.slice().sort((a, b) => {
-          const sa = stateRank(a);
-          const sb = stateRank(b);
-          if (sa !== sb) return sa - sb;
-          return new Date(a.date) - new Date(b.date);
-        });
-
-        setGames(sorted);
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          console.error("Failed to load games", err);
-        }
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
-    };
-
-    fetchGames();
     return () => controller.abort();
-  }, [router.isReady, year, week, season]);
+  }, [router.isReady, year, week, season, reloadTick]);
+
+  // Auto-refresh every 60s if tab is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        setReloadTick((n) => n + 1);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const onRefresh = () => setReloadTick((n) => n + 1);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-gradient-to-tr dark:from-gray-950 dark:to-gray-900 text-zinc-900 dark:text-white px-6 py-4 pb-32">
@@ -84,14 +98,31 @@ export default function GameCenter() {
       </Head>
 
       <div className="max-w-5xl mx-auto">
-        <header className="mb-6">
-          <h1 className="text-3xl font-extrabold flex items-center gap-2">
-            <Calendar size={28} /> Game Center — {String(year)} {season.toUpperCase()} • Week {String(week)}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Live matchups, times, odds & more</p>
+        <header className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-extrabold flex items-center gap-2">
+              <Calendar size={28} /> {String(year)} {season.toUpperCase()} • Week {String(week)}
+            </h1>
+            {lastUpdated && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Last updated {lastUpdated.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              </p>
+            )}
+          </div>
+
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60 disabled:opacity-50"
+            aria-label="Refresh games"
+            title="Refresh"
+          >
+            <RefreshCw className={loading ? "animate-spin" : ""} size={16} />
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </header>
 
-        {loading ? (
+        {loading && !games.length ? (
           <p className="text-center text-zinc-500">Loading games...</p>
         ) : games.length === 0 ? (
           <p className="text-center text-zinc-500">No games found.</p>
