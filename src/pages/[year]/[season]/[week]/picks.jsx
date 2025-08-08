@@ -1,39 +1,48 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { auth, db } from "../../../lib/firebase";
+import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, collection } from "firebase/firestore";
 import Image from "next/image";
 import { Unlock, Info } from "lucide-react";
 
 export async function getServerSideProps(context) {
-  const { year, week } = context.query;
-  const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${week}&year=${year}`;
+  const { year, week, season } = context.query;
+
+  const typeMap = { pre: 1, reg: 2, post: 3 };
+  const seasontype = typeMap[season] ?? 2; // default to regular if missing
+
+  const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
   const res = await fetch(apiUrl);
   const data = await res.json();
 
-  const matchups = data.events.map((event) => {
-    const comp = event.competitions[0];
-    const [homeComp, awayComp] = comp.competitors;
+  const events = Array.isArray(data?.events) ? data.events : [];
+
+  const matchups = events.map((event) => {
+    const comp = event?.competitions?.[0] ?? {};
+    const competitors = comp?.competitors || [];
+    // ESPN usually returns [home, away] or vice versa — normalize
+    const homeComp = competitors.find((c) => c?.homeAway === "home") || competitors[0] || {};
+    const awayComp = competitors.find((c) => c?.homeAway === "away") || competitors[1] || {};
 
     return {
-      eventId: event.id,
-      gameDate: event.date,
-      spread: comp.odds?.[0]?.details || "No Spread Available",
-      overUnder: comp.odds?.[0]?.overUnder || "No O/U Available",
+      eventId: String(event?.id ?? ""),
+      gameDate: event?.date ?? null,
+      spread: comp?.odds?.[0]?.details || "No Spread Available",
+      overUnder: comp?.odds?.[0]?.overUnder || "No O/U Available",
       homeTeam: {
-        name: homeComp.team.shortDisplayName,
-        logo: homeComp.team.logo,
-        id: homeComp.team.id,
-        record: homeComp.records?.[0]?.summary || "0-0",
+        name: homeComp?.team?.shortDisplayName || "HOME",
+        logo: homeComp?.team?.logo || "",
+        id: homeComp?.team?.id || `home-${event?.id}`,
+        record: homeComp?.records?.[0]?.summary || "0-0",
         isHome: true,
       },
       awayTeam: {
-        name: awayComp.team.shortDisplayName,
-        logo: awayComp.team.logo,
-        id: awayComp.team.id,
-        record: awayComp.records?.[0]?.summary || "0-0",
+        name: awayComp?.team?.shortDisplayName || "AWAY",
+        logo: awayComp?.team?.logo || "",
+        id: awayComp?.team?.id || `away-${event?.id}`,
+        record: awayComp?.records?.[0]?.summary || "0-0",
         isHome: false,
       },
     };
@@ -41,14 +50,15 @@ export async function getServerSideProps(context) {
 
   return {
     props: {
-      year,
-      week,
+      year: String(year),
+      week: String(week),
+      season: String(season || "reg"),
       matchups,
     },
   };
 }
 
-export default function PicksPage({ year, week, matchups }) {
+export default function PicksPage({ year, week, season, matchups }) {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [picks, setPicks] = useState({});
@@ -59,21 +69,21 @@ export default function PicksPage({ year, week, matchups }) {
   const [submittedAt, setSubmittedAt] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const router = useRouter();
-  const todayKey = `${year}-W${week}`;
-  const lastGame = matchups[matchups.length - 1];
+
+  // include season to avoid collisions (e.g., 2025-pre-W2 vs 2025-reg-W2)
+  const todayKey = `${year}-${season}-W${week}`;
+  const lastGame = matchups?.[matchups.length - 1] || null;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        const docRef = doc(db, "picks", user.uid);
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        const docRef = doc(db, "picks", u.uid);
         const docSnap = await getDoc(docRef);
 
-        const userRef = doc(db, "users", user.uid);
+        const userRef = doc(db, "users", u.uid);
         const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          setUserProfile(userSnap.data());
-        }
+        if (userSnap.exists()) setUserProfile(userSnap.data());
 
         if (docSnap.exists() && docSnap.data()[todayKey]) {
           const pickData = docSnap.data()[todayKey];
@@ -81,7 +91,17 @@ export default function PicksPage({ year, week, matchups }) {
           setTieBreaker(pickData.tieBreaker || "");
           setSubmitted(pickData.locked ?? true);
           setSubmittedAt(pickData.submittedAt || null);
+        } else {
+          setPicks({});
+          setTieBreaker("");
+          setSubmitted(false);
+          setSubmittedAt(null);
         }
+      } else {
+        setUserProfile(null);
+        setPicks({});
+        setSubmitted(false);
+        setSubmittedAt(null);
       }
     });
     return () => unsubscribe();
@@ -115,7 +135,7 @@ export default function PicksPage({ year, week, matchups }) {
       );
       setSubmitted(true);
       setSubmittedAt(now);
-      setShowConfirmation(true); // 🎉 Modal instead of toast
+      setShowConfirmation(true);
     } catch (err) {
       console.error("Submission failed", err);
     }
@@ -134,14 +154,12 @@ export default function PicksPage({ year, week, matchups }) {
 
   const pickedGames = matchups.filter((game) => picks[game.eventId]);
   const isSubmitDisabled =
-    submitted ||
-    pickedGames.length !== matchups.length ||
-    tieBreaker.trim() === "";
+    submitted || pickedGames.length !== matchups.length || tieBreaker.trim() === "";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-32 bg-white dark:bg-gray-900 min-h-screen">
       <h1 className="text-4xl font-extrabold text-center mb-2 text-gray-900 dark:text-white tracking-tight">
-        🏈 Week {week} Picks
+        🏈 {season?.toUpperCase()} • Week {week} Picks
       </h1>
 
       {userProfile?.displayName && (
@@ -164,10 +182,11 @@ export default function PicksPage({ year, week, matchups }) {
         <div className="flex justify-center mb-4">
           <button
             onClick={toggleLock}
-            className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${hasUnlocked
+            className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${
+              hasUnlocked
                 ? "bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border-blue-400"
                 : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600"
-              }`}
+            }`}
           >
             <Unlock size={16} />
             Unlock Picks
@@ -178,10 +197,11 @@ export default function PicksPage({ year, week, matchups }) {
       <div className="flex justify-center mb-4">
         <button
           onClick={() => setShowDetails(!showDetails)}
-          className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${showDetails
+          className={`flex items-center gap-2 px-4 py-2 w-64 justify-center rounded-md text-sm font-medium transition border ${
+            showDetails
               ? "bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-200 border-blue-400"
               : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 border-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600"
-            }`}
+          }`}
         >
           <Info size={16} />
           {showDetails ? "Hide Game Details" : "Show Game Details"}
@@ -201,13 +221,15 @@ export default function PicksPage({ year, week, matchups }) {
             className="rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-3 bg-white dark:bg-gray-800"
           >
             <div className="text-sm font-semibold text-center text-blue-600 dark:text-blue-300 mb-2">
-              {new Date(game.gameDate).toLocaleString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "numeric",
-              })}
+              {game.gameDate
+                ? new Date(game.gameDate).toLocaleString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "numeric",
+                  })
+                : "TBD"}
             </div>
 
             {showDetails && (
@@ -224,19 +246,24 @@ export default function PicksPage({ year, week, matchups }) {
                   <button
                     key={team.id}
                     onClick={() => handlePick(game.eventId, team.name)}
-                    className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg border transition text-center ${selected
+                    className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg border transition text-center ${
+                      selected
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-900 ring-2 ring-blue-400"
                         : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      }`}
+                    }`}
                     disabled={submitted}
                   >
-                    <Image
-                      src={team.logo}
-                      alt={team.name}
-                      width={48}
-                      height={48}
-                      className="rounded"
-                    />
+                    {team.logo ? (
+                      <Image
+                        src={team.logo}
+                        alt={team.name}
+                        width={48}
+                        height={48}
+                        className="rounded"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-gray-200 dark:bg-gray-700" />
+                    )}
                     <div className="text-sm font-bold uppercase mt-1 text-gray-900 dark:text-white">
                       {team.name}
                     </div>
@@ -254,9 +281,18 @@ export default function PicksPage({ year, week, matchups }) {
       </div>
 
       <div className="mt-10 max-w-md mx-auto">
-        <label htmlFor="tieBreaker" className="block text-center font-medium text-gray-700 dark:text-gray-200 mb-2">
+        <label
+          htmlFor="tieBreaker"
+          className="block text-center font-medium text-gray-700 dark:text-gray-200 mb-2"
+        >
           <div className="text-lg font-semibold">Tie Breaker</div>
-          <div>Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}</div>
+          {lastGame ? (
+            <div>
+              Total Points in {lastGame.awayTeam.name} @ {lastGame.homeTeam.name}
+            </div>
+          ) : (
+            <div>Total Points in Final Listed Game</div>
+          )}
         </label>
         <input
           type="number"
@@ -273,8 +309,9 @@ export default function PicksPage({ year, week, matchups }) {
         <button
           onClick={handleSubmit}
           disabled={isSubmitDisabled}
-          className={`px-6 py-3 font-semibold text-white rounded-lg transition ${isSubmitDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-            }`}
+          className={`px-6 py-3 font-semibold text-white rounded-lg transition ${
+            isSubmitDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+          }`}
         >
           {submitted ? "Picks Submitted" : "Submit Picks"}
         </button>
@@ -288,9 +325,7 @@ export default function PicksPage({ year, week, matchups }) {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               Your picks have been submitted!
             </h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-5">
-              Good luck this week.
-            </p>
+            <p className="text-gray-600 dark:text-gray-300 mb-5">Good luck this week.</p>
             <button
               onClick={() => router.push("/dashboard")}
               className="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
