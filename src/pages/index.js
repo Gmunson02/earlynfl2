@@ -1,9 +1,6 @@
 import { useRouter } from "next/router";
 import { auth } from "../lib/firebase";
-import {
-  onAuthStateChanged,
-  signInAnonymously
-} from "firebase/auth";
+import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
@@ -11,19 +8,15 @@ import Image from "next/image";
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false); // gate rendering until we know auth state
+  const [hydrated, setHydrated] = useState(false); // wait for auth state before rendering
 
-  // ✅ If already signed in, skip the landing page entirely
+  // If already signed in, skip landing page
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setHydrated(true);
       if (user) {
-        // Choose where signed-in users should land:
-        // - If you want different paths for guests vs. email users, branch here.
-        const target = user.isAnonymous ? "/guest" : "/app"; // <-- change "/app" to your real route
-        if (router.pathname !== target) {
-          router.replace(target);
-        }
+        const target = user.isAnonymous ? "/guest" : "/dashboard";
+        if (router.pathname !== target) router.replace(target);
       }
     });
     return unsub;
@@ -44,14 +37,11 @@ export default function HomePage() {
   const handleGuest = async () => {
     setLoading(true);
     try {
-      // ✅ If already signed in, don't create a new anonymous user
       const u = auth.currentUser;
       if (u) {
-        const target = u.isAnonymous ? "/guest" : "/app"; // <-- change "/app"
-        router.push(target);
+        router.push(u.isAnonymous ? "/guest" : "/dashboard");
         return;
       }
-      // Otherwise, create one anonymous session
       const result = await signInAnonymously(auth);
       console.log("Signed in anonymously:", result.user.uid);
       router.push("/guest");
@@ -63,7 +53,7 @@ export default function HomePage() {
     }
   };
 
-  // Avoid flashing the landing screen before we know auth state
+  // Avoid flashing landing while we detect auth
   if (!hydrated) return null;
 
   return (
