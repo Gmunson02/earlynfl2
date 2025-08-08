@@ -19,34 +19,37 @@ export async function getServerSideProps(context) {
 
   const events = Array.isArray(data?.events) ? data.events : [];
 
-  const matchups = events.map((event) => {
-    const comp = event?.competitions?.[0] ?? {};
-    const competitors = comp?.competitors || [];
-    // ESPN usually returns [home, away] or vice versa — normalize
-    const homeComp = competitors.find((c) => c?.homeAway === "home") || competitors[0] || {};
-    const awayComp = competitors.find((c) => c?.homeAway === "away") || competitors[1] || {};
+  const matchups = events
+    .map((event) => {
+      const comp = event?.competitions?.[0] ?? {};
+      const competitors = comp?.competitors || [];
+      // ESPN usually returns [home, away] or vice versa — normalize
+      const homeComp = competitors.find((c) => c?.homeAway === "home") || competitors[0] || {};
+      const awayComp = competitors.find((c) => c?.homeAway === "away") || competitors[1] || {};
 
-    return {
-      eventId: String(event?.id ?? ""),
-      gameDate: event?.date ?? null,
-      spread: comp?.odds?.[0]?.details || "No Spread Available",
-      overUnder: comp?.odds?.[0]?.overUnder || "No O/U Available",
-      homeTeam: {
-        name: homeComp?.team?.shortDisplayName || "HOME",
-        logo: homeComp?.team?.logo || "",
-        id: homeComp?.team?.id || `home-${event?.id}`,
-        record: homeComp?.records?.[0]?.summary || "0-0",
-        isHome: true,
-      },
-      awayTeam: {
-        name: awayComp?.team?.shortDisplayName || "AWAY",
-        logo: awayComp?.team?.logo || "",
-        id: awayComp?.team?.id || `away-${event?.id}`,
-        record: awayComp?.records?.[0]?.summary || "0-0",
-        isHome: false,
-      },
-    };
-  });
+      return {
+        eventId: String(event?.id ?? ""),
+        gameDate: event?.date ?? null,
+        spread: comp?.odds?.[0]?.details || "No Spread Available",
+        overUnder: comp?.odds?.[0]?.overUnder || "No O/U Available",
+        homeTeam: {
+          name: homeComp?.team?.shortDisplayName || "HOME",
+          logo: homeComp?.team?.logo || "",
+          id: homeComp?.team?.id || `home-${event?.id}`,
+          record: homeComp?.records?.[0]?.summary || "0-0",
+          isHome: true,
+        },
+        awayTeam: {
+          name: awayComp?.team?.shortDisplayName || "AWAY",
+          logo: awayComp?.team?.logo || "",
+          id: awayComp?.team?.id || `away-${event?.id}`,
+          record: awayComp?.records?.[0]?.summary || "0-0",
+          isHome: false,
+        },
+      };
+    })
+    // 🔹 Sort games by date/time ascending
+    .sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
 
   return {
     props: {
@@ -72,7 +75,7 @@ export default function PicksPage({ year, week, season, matchups }) {
 
   // include season to avoid collisions (e.g., 2025-pre-W2 vs 2025-reg-W2)
   const todayKey = `${year}-${season}-W${week}`;
-  const lastGame = matchups?.[matchups.length - 1] || null;
+  const lastGame = matchups?.[matchups.length - 1] || null; // now from sorted list
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
