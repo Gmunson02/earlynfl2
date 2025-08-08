@@ -169,14 +169,15 @@ export default function ScoresPage() {
           </div>
         )}
         {/* Mobile: abbr only; md+: abbr + score */}
-        <div className="text-xs md:text-[13px] font-mono whitespace-nowrap">
-          {g?.home?.abbr}
-          <span className="hidden md:inline"> {showScores ? g?.homeScore ?? "-" : "-"}</span>
-        </div>
-        <div className="text-xs md:text-[13px] font-mono whitespace-nowrap">
-          {g?.away?.abbr}
-          <span className="hidden md:inline"> {showScores ? g?.awayScore ?? "-" : "-"}</span>
-        </div>
+        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
+  <span>{g?.home?.abbr}</span>
+  <span>{showScores ? g?.homeScore ?? "-" : "-"}</span>
+</div>
+
+<div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
+  <span>{g?.away?.abbr}</span>
+  <span>{showScores ? g?.awayScore ?? "-" : "-"}</span>
+</div>
       </div>
     );
   };
@@ -302,8 +303,8 @@ export default function ScoresPage() {
                             <Image
                               src={team.logo}
                               alt={team?.label || "Team"}
-                              width={32}
-                              height={32}
+                              width={50}
+                              height={50}
                               className="mx-auto"
                             />
                           ) : (
