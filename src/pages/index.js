@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
@@ -8,17 +9,39 @@ import Image from "next/image";
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false); // wait for auth state
+  const [hydrated, setHydrated] = useState(false);
 
-  // If already signed in (guest or not), go straight to /dashboard
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      setHydrated(true);
-      if (user) {
-        if (router.pathname !== "/dashboard") router.replace("/dashboard");
+    let canceled = false;
+
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setHydrated(true); // show landing
+        return;
+      }
+
+      try {
+        if (!user.isAnonymous) {
+          if (!canceled) router.replace("/dashboard");
+          return;
+        }
+
+        // Anonymous: check profile for displayName
+        const snap = await getDoc(doc(db, "users", user.uid));
+        const hasDisplayName = snap.exists() && !!snap.data()?.displayName;
+
+        if (!canceled) {
+          router.replace(hasDisplayName ? "/dashboard" : "/guest");
+        }
+      } finally {
+        if (!canceled) setHydrated(true);
       }
     });
-    return unsub;
+
+    return () => {
+      canceled = true;
+      unsub();
+    };
   }, [router]);
 
   const handleEmailSignIn = async () => {
@@ -33,14 +56,16 @@ export default function HomePage() {
   const handleGuest = async () => {
     setLoading(true);
     try {
-      // If already signed in, just go
-      if (auth.currentUser) {
-        router.push("/dashboard");
-        return;
+      // If already signed in, route based on profile
+      const u = auth.currentUser;
+      if (u) {
+        if (!u.isAnonymous) return router.push("/dashboard");
+        // anon: send to onboarding; dashboard gate happens after they set a name
+        return router.push("/guest");
       }
-      // Otherwise create an anonymous user, then go
+      // Create anon user, then to onboarding
       await signInAnonymously(auth);
-      router.push("/dashboard");
+      router.push("/guest");
     } catch (err) {
       console.error("Guest sign-in failed:", err);
       alert("Guest sign-in failed");
@@ -49,10 +74,8 @@ export default function HomePage() {
     }
   };
 
-  // Don’t flash the landing page while we check auth
   if (!hydrated) return null;
 
-  // If hydrated and signed in, the effect above will redirect; otherwise render landing:
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-gray-800 px-6 pb-24">
       <Head>
