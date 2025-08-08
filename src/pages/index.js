@@ -15,7 +15,7 @@ export default function HomePage() {
     const unsub = onAuthStateChanged(auth, (user) => {
       setHydrated(true);
       if (user) {
-        const target = user.isAnonymous ? "/guest" : "/dashboard";
+        const target = user.isAnonymous ? "/" : "/dashboard";
         if (router.pathname !== target) router.replace(target);
       }
     });
