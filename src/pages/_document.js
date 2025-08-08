@@ -4,11 +4,11 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* PWA manifest */}
+        {/* PWA */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#ffffff" />
 
-        {/* iOS standalone */}
+        {/* iOS */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
