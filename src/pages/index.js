@@ -8,15 +8,14 @@ import Image from "next/image";
 export default function HomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false); // wait for auth state before rendering
+  const [hydrated, setHydrated] = useState(false); // wait for auth state
 
-  // If already signed in, skip landing page
+  // If already signed in (guest or not), go straight to /dashboard
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setHydrated(true);
       if (user) {
-        const target = user.isAnonymous ? "/" : "/dashboard";
-        if (router.pathname !== target) router.replace(target);
+        if (router.pathname !== "/dashboard") router.replace("/dashboard");
       }
     });
     return unsub;
@@ -26,9 +25,6 @@ export default function HomePage() {
     setLoading(true);
     try {
       router.push("/signin");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to navigate to sign in.");
     } finally {
       setLoading(false);
     }
@@ -37,14 +33,14 @@ export default function HomePage() {
   const handleGuest = async () => {
     setLoading(true);
     try {
-      const u = auth.currentUser;
-      if (u) {
-        router.push(u.isAnonymous ? "/guest" : "/dashboard");
+      // If already signed in, just go
+      if (auth.currentUser) {
+        router.push("/dashboard");
         return;
       }
-      const result = await signInAnonymously(auth);
-      console.log("Signed in anonymously:", result.user.uid);
-      router.push("/guest");
+      // Otherwise create an anonymous user, then go
+      await signInAnonymously(auth);
+      router.push("/dashboard");
     } catch (err) {
       console.error("Guest sign-in failed:", err);
       alert("Guest sign-in failed");
@@ -53,9 +49,10 @@ export default function HomePage() {
     }
   };
 
-  // Avoid flashing landing while we detect auth
+  // Don’t flash the landing page while we check auth
   if (!hydrated) return null;
 
+  // If hydrated and signed in, the effect above will redirect; otherwise render landing:
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-center bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-gray-800 px-6 pb-24">
       <Head>
