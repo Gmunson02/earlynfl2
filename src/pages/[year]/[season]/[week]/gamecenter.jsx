@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import { useEffect, useMemo, useState } from "react";
 import { LazyMotion, domAnimation, m as motion } from "framer-motion";
-import { Calendar, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import Image from "next/image";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
@@ -23,7 +23,6 @@ export default function GameCenter() {
   const [reloadTick, setReloadTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Reuse a single formatter instance
   const timeFmt = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
@@ -72,20 +71,18 @@ export default function GameCenter() {
 
   useEffect(() => {
     if (!router.isReady || !year || !week) return;
-
     const controller = new AbortController();
     fetchGames(controller.signal);
-
     return () => controller.abort();
   }, [router.isReady, year, week, season, reloadTick]);
 
-  // Auto-refresh every 60s if tab is visible
+  // Auto-refresh every 30s if tab is visible
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
         setReloadTick((n) => n + 1);
       }
-    }, 60000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -100,8 +97,8 @@ export default function GameCenter() {
       <div className="max-w-5xl mx-auto">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-extrabold flex items-center gap-2">
-              <Calendar size={28} /> {String(year)} {season.toUpperCase()} • Week {String(week)}
+            <h1 className="text-3xl font-extrabold">
+              {String(year)} {season.toUpperCase()} • Week {String(week)}
             </h1>
             {lastUpdated && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -132,7 +129,7 @@ export default function GameCenter() {
               {games.map((event) => {
                 const comp = event?.competitions?.[0];
                 const t = comp?.status?.type || {};
-                const isIn = t?.state === "in";
+                const isLive = t?.state === "in";
                 const isPost = t?.state === "post" || t?.completed;
 
                 const statusText = t?.shortDetail || t?.description || "";
@@ -145,10 +142,10 @@ export default function GameCenter() {
                 const home = comp?.competitors?.find((x) => x.homeAway === "home");
                 const away = comp?.competitors?.find((x) => x.homeAway === "away");
 
-                const scoreFor = (team) => (isIn || isPost ? team?.score : "--");
+                const scoreFor = (team) => (isLive || isPost ? team?.score : "--");
 
-                const liveDetail = isIn ? (
-                  <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{detailText || statusText}</p>
+                const liveDetail = isLive ? (
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">{detailText || statusText}</p>
                 ) : isPost ? (
                   <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
                     {detailText || statusText || "Final"}
@@ -162,15 +159,22 @@ export default function GameCenter() {
                     key={event.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow p-4"
+                    className={`bg-white dark:bg-zinc-800/80 border rounded-xl shadow p-4 ${
+                      isLive ? "border-red-500 shadow-red-500/20" : "border-zinc-200 dark:border-zinc-700"
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{statusText}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {timeFmt.format(new Date(event.date))} {broadcast && `• ${broadcast}`}
-                        </p>
+                        {isLive && (
+                          <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-600 text-white animate-pulse">
+                            LIVE
+                          </span>
+                        )}
                       </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {timeFmt.format(new Date(event.date))} {broadcast && `• ${broadcast}`}
+                      </p>
                     </div>
 
                     <div className="flex justify-between items-center mb-2">
@@ -185,7 +189,9 @@ export default function GameCenter() {
                             loading="lazy"
                           />
                         )}
-                        <p className="text-lg font-bold mt-1">{scoreFor(away)}</p>
+                        <p className={`text-lg font-bold mt-1 ${isLive && away?.score > home?.score ? "text-green-600" : ""}`}>
+                          {scoreFor(away)}
+                        </p>
                       </div>
 
                       <span className="text-lg font-bold text-zinc-500">@</span>
@@ -201,7 +207,9 @@ export default function GameCenter() {
                             loading="lazy"
                           />
                         )}
-                        <p className="text-lg font-bold mt-1">{scoreFor(home)}</p>
+                        <p className={`text-lg font-bold mt-1 ${isLive && home?.score > away?.score ? "text-green-600" : ""}`}>
+                          {scoreFor(home)}
+                        </p>
                       </div>
                     </div>
 
