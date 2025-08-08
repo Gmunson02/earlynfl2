@@ -14,6 +14,15 @@ function MyApp({ Component, pageProps }) {
   const [hasDisplayName, setHasDisplayName] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  // 🔹 Register SW once on mount
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .catch((err) => console.error("SW registration failed:", err));
+    }
+  }, []);
+
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const initialTheme = stored === "dark" ? "dark" : "light";
@@ -41,7 +50,6 @@ function MyApp({ Component, pageProps }) {
       } else {
         setHasDisplayName(false);
       }
-
       setIsReady(true);
     });
 
@@ -65,10 +73,7 @@ function MyApp({ Component, pageProps }) {
         <Toaster
           position="top-center"
           toastOptions={{
-            style: {
-              background: "#333",
-              color: "#fff",
-            },
+            style: { background: "#333", color: "#fff" },
           }}
         />
       </Layout>
