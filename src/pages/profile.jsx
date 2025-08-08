@@ -177,7 +177,7 @@ export default function ProfilePage() {
   name="theme"
   value={form.theme}
   onChange={handleChange}
-  className="w-full border px-3 py-2 rounded bg-transparent dark:bg-transparent dark:border-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+  className="w-full border px-3 py-2 rounded dark:bg-gray-700 bg-white dark:border-gray-600 border-gray-300 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 >
   <option value="light">Light Mode</option>
   <option value="dark">Dark Mode</option>
