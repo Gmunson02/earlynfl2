@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useCallback, useState } from "react";
-import { auth, db } from "../lib/firebase";
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
-import { useRouter } from "next/router";
+import React, { useEffect, useMemo, useCallback, useState } from "react";
 import Head from "next/head";
+import { useRouter } from "next/router";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { Calendar, ClipboardList, Clock, TrendingUp, Settings, PlayCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { onAuthStateChanged } from "firebase/auth";
-import React from "react";
 
 // ---- hooks -------------------------------------------------
 
@@ -57,7 +56,7 @@ function useEspnWeekAndCountdown() {
         const typeInfo = typeMap[json?.season?.type] || { code: null, label: "" };
         const week = json?.week?.number ?? null;
 
-        // find next scheduled event for countdown
+        // next scheduled event → countdown
         const now = new Date();
         const events = Array.isArray(json?.events) ? json.events : [];
         const upcoming = events
@@ -88,15 +87,15 @@ function useEspnWeekAndCountdown() {
         setData({
           seasonYear,
           week,
-          seasonType: typeInfo.code,   // 'pre' | 'reg' | 'post'
-          seasonLabel: typeInfo.label, // 'Preseason', etc.
+          seasonType: typeInfo.code,
+          seasonLabel: typeInfo.label,
           countdown: "—",
         });
 
         tick();
         clearInterval(intervalId);
         intervalId = setInterval(tick, 1000);
-      } catch (e) {
+      } catch {
         setData((prev) => ({ ...prev, countdown: "—" }));
       }
     }
@@ -108,37 +107,56 @@ function useEspnWeekAndCountdown() {
   return data; // { seasonYear, week, seasonType, seasonLabel, countdown }
 }
 
-function useLastWeekWinner(currentWeek, seasonYear) {
-  const [winner, setWinner] = useState(null);
-
-  const fetchWinner = useCallback(async (week) => {
-    if (!seasonYear) return;
-    const key = `${seasonYear}-W${week}`;
-
-    const snap = await getDocs(collection(db, "picks"));
-    let best = null;
-    let maxCorrect = -1;
-
-    for (const docSnap of snap.docs) {
-      const data = docSnap.data()[key];
-      if (!data) continue;
-      const { displayName, tieBreaker, ...picks } = data;
-      const correct = Object.values(picks).filter((v) => v === "✅").length;
-      if (correct > maxCorrect) {
-        maxCorrect = correct;
-        best = { displayName, correct };
-      }
-    }
-    setWinner(best);
-  }, [seasonYear]);
+/**
+ * Reads the previous week's computed winners from Firestore:
+ * weekly_results/{year}-{season}-W{prevWeek}
+ * Returns:
+ *  null OR { week, lastGameTotal, winners: [{ displayName, correctPicks, tieBreaker }] }
+ */
+function useLastWeekWinner(currentWeek, seasonYear, seasonType) {
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    if (!currentWeek || !seasonYear) return;
-    const last = Math.max(1, currentWeek - 1);
-    fetchWinner(last);
-  }, [currentWeek, seasonYear, fetchWinner]);
+    const run = async () => {
+      if (!currentWeek || !seasonYear || !seasonType) return;
 
-  return winner;
+      const week = Math.max(1, currentWeek - 1);
+      const docId = `${seasonYear}-${seasonType}-W${week}`;
+      const snap = await getDoc(doc(db, "weekly_results", docId));
+      if (!snap.exists()) {
+        setData(null);
+        return;
+      }
+
+      const d = snap.data();
+      const standings = Array.isArray(d.standings) ? d.standings : [];
+      const winnersRaw = Array.isArray(d.winners) ? d.winners : [];
+
+      // winners can be ["uid", ...] or [{uid, displayName}, ...]
+      const winnersNorm = winnersRaw.map((w) =>
+        typeof w === "string" ? { uid: w, displayName: w } : { uid: w.uid, displayName: w.displayName || w.uid }
+      );
+
+      const winners = winnersNorm.map((w) => {
+        const s = standings.find((x) => x.uid === w.uid);
+        return {
+          displayName: w.displayName,
+          correctPicks: s?.wins ?? null,
+          tieBreaker: s?.tieBreaker ?? null,
+        };
+      });
+
+      setData({
+        week,
+        lastGameTotal: d.lastGameTotal ?? null,
+        winners,
+      });
+    };
+
+    run();
+  }, [currentWeek, seasonYear, seasonType]);
+
+  return data;
 }
 
 // ---- UI bits -----------------------------------------------
@@ -168,12 +186,11 @@ export default function Dashboard() {
   const router = useRouter();
   const userName = useUserName();
   const { seasonYear, week: currentWeek, seasonType, seasonLabel, countdown } = useEspnWeekAndCountdown();
-  const lastWeekWinner = useLastWeekWinner(currentWeek, seasonYear);
+  const lastWeek = useLastWeekWinner(currentWeek, seasonYear, seasonType);
 
   const safeYear = seasonYear ?? new Date().getFullYear();
   const safeWeek = currentWeek ?? 1;
 
-  // Tiny link helper
   const linkFor = (y, s, w, leaf) => `/${y}/${s}/${w}/${leaf}`;
 
   const go = useCallback(
@@ -202,6 +219,7 @@ export default function Dashboard() {
           transition={{ duration: 0.4 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6"
         >
+          {/* Current week */}
           <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">Current Week</h2>
             <p className="text-base sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
@@ -214,25 +232,38 @@ export default function Dashboard() {
             </p>
           </div>
 
+          {/* Countdown */}
           <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">Next Game Countdown</h2>
             <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">{countdown}</p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">Until next kickoff</p>
           </div>
 
-          {lastWeekWinner && (
+          {/* Last week's winner(s) */}
+          {lastWeek && lastWeek.winners?.length > 0 && (
             <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
-              <h2 className="text-sm sm:text-base font-semibold mb-1">Last Week&apos;s Winner</h2>
-              <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400">
-                {lastWeekWinner.displayName}
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 hidden sm:block">
-                {lastWeekWinner.correct} correct picks
-              </p>
+              <h2 className="text-sm sm:text-base font-semibold mb-2">
+                Last Week&apos;s Winner{lastWeek.winners.length > 1 ? "s" : ""}
+              </h2>
+
+              <div className="space-y-1">
+              {lastWeek.winners.map((w, i) => (
+  <div key={`${w.displayName}-${i}`}>
+    <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mb-1">
+      {w.displayName}
+    </p>
+    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+      {w.correctPicks ?? "—"} correct picks • Tie Breaker: {w.tieBreaker ?? "—"}
+      {lastWeek.lastGameTotal != null && ` (Final: ${lastWeek.lastGameTotal})`}
+    </p>
+  </div>
+))}
+              </div>
             </div>
           )}
         </motion.section>
 
+        {/* Actions */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
