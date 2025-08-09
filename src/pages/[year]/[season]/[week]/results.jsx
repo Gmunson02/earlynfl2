@@ -159,28 +159,35 @@ export default function ScoresPage() {
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
 
+  // ---------- FIX: reserve a status row height in every header cell ----------
   const HeaderCompact = ({ g, showScores }) => {
     const live = g?.status === "in";
     return (
       <div className="flex flex-col items-center leading-tight">
-        {live && (
-          <div className="mb-0.5 text-[10px] font-semibold tracking-wide text-rose-400 md:text-[11px]">
+        {/* Status row: constant height; shows LIVE or an empty spacer */}
+        <div className="mb-0.5 flex h-4 md:h-5 items-center justify-center">
+          <span
+            className={`text-[10px] md:text-[11px] font-semibold tracking-wide ${
+              live ? "text-rose-400" : "opacity-0"
+            }`}
+          >
             LIVE
-          </div>
-        )}
-        {/* Mobile: abbr only; md+: abbr + score */}
-        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
-  <span>{g?.home?.abbr}</span>
-  <span>{showScores ? g?.homeScore ?? "-" : "-"}</span>
-</div>
+          </span>
+        </div>
 
-<div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
-  <span>{g?.away?.abbr}</span>
-  <span>{showScores ? g?.awayScore ?? "-" : "-"}</span>
-</div>
+        {/* Two compact rows: home and away with optional scores */}
+        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
+          <span>{g?.home?.abbr}</span>
+          <span>{showScores ? g?.homeScore ?? "-" : "-"}</span>
+        </div>
+        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
+          <span>{g?.away?.abbr}</span>
+          <span>{showScores ? g?.awayScore ?? "-" : "-"}</span>
+        </div>
       </div>
     );
   };
+  // --------------------------------------------------------------------------
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
@@ -263,66 +270,66 @@ export default function ScoresPage() {
             </tr>
           </thead>
 
-            <tbody>
-              {submissions.map((entry, index) => {
-                const rowBg =
-                  index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
-                const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+          <tbody>
+            {submissions.map((entry, index) => {
+              const rowBg =
+                index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+              const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
 
-                return (
-                  <tr key={entry.uid} className={rowBg}>
-                    <td
-                      className={`${W_USER} px-2 py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
-                      title={entry.displayName || ""}
-                    >
-                      {truncate14(entry.displayName)}
-                    </td>
+              return (
+                <tr key={entry.uid} className={rowBg}>
+                  <td
+                    className={`${W_USER} px-2 py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                    title={entry.displayName || ""}
+                  >
+                    {truncate14(entry.displayName)}
+                  </td>
 
-                    <td className={`${W_WINS} px-2 py-1 text-center ${borderClass}`}>
-                      {entry.winnerCount}
-                    </td>
+                  <td className={`${W_WINS} px-2 py-1 text-center ${borderClass}`}>
+                    {entry.winnerCount}
+                  </td>
 
-                    {uniqueEventIDs.map((eventID) => {
-                      const pickTeam = picksMap.get(eventID);
-                      const correct = winners[eventID] === pickTeam;
-                      const g = eventMap[eventID];
-                      const pickedHome =
-                        g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
-                      const team = pickedHome
-                        ? { logo: g?.home?.logo, label: g?.home?.abbr }
-                        : { logo: g?.away?.logo, label: g?.away?.abbr };
-                      const isPending = g?.status !== "post";
-                      const bgColor = isPending ? "" : correct ? "bg-green-200" : "bg-red-200";
+                  {uniqueEventIDs.map((eventID) => {
+                    const pickTeam = picksMap.get(eventID);
+                    const correct = winners[eventID] === pickTeam;
+                    const g = eventMap[eventID];
+                    const pickedHome =
+                      g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
+                    const team = pickedHome
+                      ? { logo: g?.home?.logo, label: g?.home?.abbr }
+                      : { logo: g?.away?.logo, label: g?.away?.abbr };
+                    const isPending = g?.status !== "post";
+                    const bgColor = isPending ? "" : correct ? "bg-green-200" : "bg-red-200";
 
-                      return (
-                        <td
-                          key={eventID}
-                          className={`${W_GAME} text-center px-1 py-1 ${borderClass} ${bgColor}`}
-                        >
-                          {pickTeam && team?.logo ? (
-                            <Image
-                              src={team.logo}
-                              alt={team?.label || "Team"}
-                              width={50}
-                              height={50}
-                              className="mx-auto"
-                            />
-                          ) : (
-                            <span className="text-gray-400">–</span>
-                          )}
-                        </td>
-                      );
-                    })}
+                    return (
+                      <td
+                        key={eventID}
+                        className={`${W_GAME} text-center px-1 py-1 ${borderClass} ${bgColor}`}
+                      >
+                        {pickTeam && team?.logo ? (
+                          <Image
+                            src={team.logo}
+                            alt={team?.label || "Team"}
+                            width={50}
+                            height={50}
+                            className="mx-auto"
+                          />
+                        ) : (
+                          <span className="text-gray-400">–</span>
+                        )}
+                      </td>
+                    );
+                  })}
 
-                    <td className={`${W_TB} px-2 py-1 text-center bg-white dark:bg-gray-950 ${borderClass}`}>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {entry.tieBreaker || "—"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                  <td className={`${W_TB} px-2 py-1 text-center bg-white dark:bg-gray-950 ${borderClass}`}>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {entry.tieBreaker || "—"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
       </div>
     </div>
