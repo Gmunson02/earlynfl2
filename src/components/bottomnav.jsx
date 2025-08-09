@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react";
+import { Home, List, Trophy, PlayCircle, Settings, TrendingUp } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 
 function useEspnWeek() {
   const [state, setState] = useState({
     seasonYear: null,
     week: null,
-    seasonType: null,   // 'pre' | 'reg' | 'post'
+    seasonType: null, // 'pre' | 'reg' | 'post'
   });
 
   useEffect(() => {
@@ -16,7 +16,9 @@ function useEspnWeek() {
 
     (async () => {
       try {
-        const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
+        const res = await fetch(
+          "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+        );
         const json = await res.json();
         if (!alive) return;
 
@@ -42,7 +44,6 @@ export default function BottomNav() {
   const router = useRouter();
   const { seasonYear, week, seasonType } = useEspnWeek();
 
-  // tiny link helper
   const linkFor = (y, s, w, leaf) => `/${y}/${s}/${w}/${leaf}`;
 
   const picksHref = useMemo(() => {
@@ -55,7 +56,7 @@ export default function BottomNav() {
     return linkFor(seasonYear, seasonType, week, "results");
   }, [seasonYear, seasonType, week]);
 
-  const gamecenterHref = useMemo(() => {
+  const matchupsHref = useMemo(() => {
     if (!seasonYear || !seasonType || !week) return null;
     return linkFor(seasonYear, seasonType, week, "gamecenter");
   }, [seasonYear, seasonType, week]);
@@ -64,13 +65,14 @@ export default function BottomNav() {
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
-    { label: "Game Center", href: gamecenterHref, icon: PlayCircle, ready: !!gamecenterHref },
+    { label: "Matchups", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
+    { label: "Leaderboard", href: "/leaderboard", icon: TrendingUp, ready: true },
     { label: "Settings", href: "/profile", icon: Settings, ready: true },
   ];
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-md h-16 pb-[env(safe-area-inset-bottom)] transform-gpu">
-      <ul className="flex justify-around items-center h-full">
+      <ul className="flex justify-evenly items-center h-full">
         {navItems.map((item) => {
           const isActive = item.href ? router.asPath.startsWith(item.href) : false;
           const Icon = item.icon;

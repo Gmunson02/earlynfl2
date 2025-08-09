@@ -292,7 +292,7 @@ export default function Dashboard() {
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, safeWeek, "gamecenter"))}
             icon={PlayCircle}
-            label="Game Center"
+            label="Matchups"
             disabled={!currentWeek || !seasonYear || !seasonType}
           />
           <ActionButton onClick={go("/leaderboard")} icon={TrendingUp} label="Leaderboard" />
