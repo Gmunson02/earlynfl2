@@ -23,7 +23,6 @@ export async function getServerSideProps(context) {
     .map((event) => {
       const comp = event?.competitions?.[0] ?? {};
       const competitors = comp?.competitors || [];
-      // ESPN usually returns [home, away] or vice versa — normalize
       const homeComp = competitors.find((c) => c?.homeAway === "home") || competitors[0] || {};
       const awayComp = competitors.find((c) => c?.homeAway === "away") || competitors[1] || {};
 
@@ -48,7 +47,6 @@ export async function getServerSideProps(context) {
         },
       };
     })
-    // 🔹 Sort games by date/time ascending
     .sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
 
   return {
@@ -70,12 +68,13 @@ export default function PicksPage({ year, week, season, matchups }) {
   const [showDetails, setShowDetails] = useState(false);
   const [tieBreaker, setTieBreaker] = useState("");
   const [submittedAt, setSubmittedAt] = useState(null);
+  const [lastEditedAt, setLastEditedAt] = useState(null); // NEW
   const [showConfirmation, setShowConfirmation] = useState(false);
   const router = useRouter();
 
   // include season to avoid collisions (e.g., 2025-pre-W2 vs 2025-reg-W2)
   const todayKey = `${year}-${season}-W${week}`;
-  const lastGame = matchups?.[matchups.length - 1] || null; // now from sorted list
+  const lastGame = matchups?.[matchups.length - 1] || null;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -94,17 +93,20 @@ export default function PicksPage({ year, week, season, matchups }) {
           setTieBreaker(pickData.tieBreaker || "");
           setSubmitted(pickData.locked ?? true);
           setSubmittedAt(pickData.submittedAt || null);
+          setLastEditedAt(pickData.lastEditedAt || pickData.submittedAt || null); // prefer lastEditedAt
         } else {
           setPicks({});
           setTieBreaker("");
           setSubmitted(false);
           setSubmittedAt(null);
+          setLastEditedAt(null);
         }
       } else {
         setUserProfile(null);
         setPicks({});
         setSubmitted(false);
         setSubmittedAt(null);
+        setLastEditedAt(null);
       }
     });
     return () => unsubscribe();
@@ -123,21 +125,35 @@ export default function PicksPage({ year, week, season, matchups }) {
     try {
       const now = new Date().toISOString();
       const ref = doc(collection(db, "picks"), user.uid);
+
+      // Read existing to preserve original submittedAt
+      const existingSnap = await getDoc(ref);
+      const existing = existingSnap.exists() ? existingSnap.data()?.[todayKey] : null;
+      const preservedSubmittedAt = existing?.submittedAt || now; // first submit sets both to now
+
       await setDoc(
         ref,
         {
           [todayKey]: {
+            // keep only event picks from state, spread is fine but we'll override system fields
             ...picks,
             tieBreaker,
             displayName: name,
             locked: true,
-            submittedAt: now,
+
+            // leave submittedAt alone after first submit
+            submittedAt: preservedSubmittedAt,
+
+            // always update lastEditedAt
+            lastEditedAt: now,
           },
         },
         { merge: true }
       );
+
       setSubmitted(true);
-      setSubmittedAt(now);
+      setSubmittedAt(preservedSubmittedAt);
+      setLastEditedAt(now);
       setShowConfirmation(true);
     } catch (err) {
       console.error("Submission failed", err);
@@ -147,12 +163,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   const toggleLock = () => {
     setSubmitted(false);
     setHasUnlocked(true);
-    setPicks((prev) => {
-      const updated = { ...prev };
-      delete updated.locked;
-      delete updated.submittedAt;
-      return updated;
-    });
+    // Do not delete timestamps from local state
   };
 
   const pickedGames = matchups.filter((game) => picks[game.eventId]);
@@ -175,9 +186,15 @@ export default function PicksPage({ year, week, season, matchups }) {
         </div>
       )}
 
-      {submittedAt && (
+      {(submittedAt || lastEditedAt) && (
         <div className="mb-4 text-center text-xs text-gray-500 dark:text-gray-400 italic">
-          Picks last submitted on {new Date(submittedAt).toLocaleString()}
+          {lastEditedAt && submittedAt && lastEditedAt !== submittedAt ? (
+            <>Picks last updated on {new Date(lastEditedAt).toLocaleString()}</>
+          ) : submittedAt ? (
+            <>Picks submitted on {new Date(submittedAt).toLocaleString()}</>
+          ) : (
+            <>Picks last updated on {new Date(lastEditedAt).toLocaleString()}</>
+          )}
         </div>
       )}
 
@@ -320,7 +337,6 @@ export default function PicksPage({ year, week, season, matchups }) {
         </button>
       </div>
 
-      {/* 🎉 Confirmation Modal */}
       {showConfirmation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-xl max-w-sm w-full text-center">
