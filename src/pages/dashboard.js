@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useState } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { onAuthStateChanged } from "firebase/auth";
@@ -190,6 +190,7 @@ export default function Dashboard() {
 
   const safeYear = seasonYear ?? new Date().getFullYear();
   const safeWeek = currentWeek ?? 1;
+  const prevWeek = Math.max(1, safeWeek - 1);
 
   const linkFor = (y, s, w, leaf) => `/${y}/${s}/${w}/${leaf}`;
 
@@ -247,17 +248,17 @@ export default function Dashboard() {
               </h2>
 
               <div className="space-y-1">
-              {lastWeek.winners.map((w, i) => (
-  <div key={`${w.displayName}-${i}`}>
-    <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mb-1">
-      {w.displayName}
-    </p>
-    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-      {w.correctPicks ?? "—"} correct picks • Tie Breaker: {w.tieBreaker ?? "—"}
-      {lastWeek.lastGameTotal != null && ` (Final: ${lastWeek.lastGameTotal})`}
-    </p>
-  </div>
-))}
+                {lastWeek.winners.map((w, i) => (
+                  <div key={`${w.displayName}-${i}`}>
+                    <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mb-1">
+                      {w.displayName}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {w.correctPicks ?? "—"} correct • TB: {w.tieBreaker ?? "—"}
+                      {lastWeek.lastGameTotal != null && ` (Final: ${lastWeek.lastGameTotal})`}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -282,7 +283,12 @@ export default function Dashboard() {
             label="This Week’s Results"
             disabled={!currentWeek || !seasonYear || !seasonType}
           />
-          <ActionButton icon={Clock} label="Last Week’s Results" disabled />
+          <ActionButton
+            onClick={go(linkFor(safeYear, seasonType, prevWeek, "results"))}
+            icon={Clock}
+            label="Last Week’s Results"
+            disabled={!currentWeek || !seasonYear || !seasonType}
+          />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, safeWeek, "gamecenter"))}
             icon={PlayCircle}
