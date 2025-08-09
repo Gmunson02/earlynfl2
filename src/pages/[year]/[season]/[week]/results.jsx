@@ -177,13 +177,14 @@ export default function ScoresPage() {
 
         {/* Two compact rows: home and away with optional scores */}
         <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
-          <span>{g?.home?.abbr}</span>
-          <span>{showScores ? g?.homeScore ?? "-" : "-"}</span>
-        </div>
-        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
           <span>{g?.away?.abbr}</span>
           <span>{showScores ? g?.awayScore ?? "-" : "-"}</span>
         </div>
+        <div className="flex justify-between w-full text-xs md:text-[13px] font-mono whitespace-nowrap">
+          <span>{g?.home?.abbr}</span>
+          <span>{showScores ? g?.homeScore ?? "-" : "-"}</span>
+        </div>
+
       </div>
     );
   };
