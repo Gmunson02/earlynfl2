@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Apply theme background and text to the body */
+body {
+  @apply bg-white text-black dark:bg-gray-900 dark:text-white;
+}
+
+/* Optional: Smooth transitions when switching themes */
+html {
+  @apply transition-colors duration-300;
+}
+
+/* Fix for full height and edge-to-edge background color */
+html, body {
+  height: 100%;
+}
