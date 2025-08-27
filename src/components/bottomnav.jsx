@@ -44,22 +44,23 @@ export default function BottomNav() {
   const router = useRouter();
   const { seasonYear, week, seasonType } = useEspnWeek();
 
-  const linkFor = (y, s, w, leaf) => `/${y}/${s}/${w}/${leaf}`;
+  const buildWeekPath = (y, s, w, leaf) =>
+    y && s && w && leaf ? `/${y}/${s}/${w}/${leaf}` : null;
 
-  const picksHref = useMemo(() => {
-    if (!seasonYear || !seasonType || !week) return null;
-    return linkFor(seasonYear, seasonType, week, "picks");
-  }, [seasonYear, seasonType, week]);
+  const picksHref = useMemo(
+    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "picks"),
+    [seasonYear, seasonType, week]
+  );
 
-  const resultsHref = useMemo(() => {
-    if (!seasonYear || !seasonType || !week) return null;
-    return linkFor(seasonYear, seasonType, week, "results");
-  }, [seasonYear, seasonType, week]);
+  const resultsHref = useMemo(
+    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "results"),
+    [seasonYear, seasonType, week]
+  );
 
-  const matchupsHref = useMemo(() => {
-    if (!seasonYear || !seasonType || !week) return null;
-    return linkFor(seasonYear, seasonType, week, "gamecenter");
-  }, [seasonYear, seasonType, week]);
+  const matchupsHref = useMemo(
+    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "gamecenter"),
+    [seasonYear, seasonType, week]
+  );
 
   const navItems = [
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
