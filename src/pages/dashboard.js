@@ -59,16 +59,17 @@ function useScheduleWeek(seasonId = "nfl-2025") {
   const [state, setState] = useState({
     loading: true,
     seasonYear: null,
-    seasonType: null, // "reg" | "post"
+    seasonType: null, // e.g., "reg", "post"
     label: "",
-    displayLabel: "",
-    value: null,
+    displayLabel: "", // mirrors label
+    value: null, // ESPN week value (string)
     countdown: "—",
     firstGame: null,
     start: null,
     end: null,
     order: null,
     prevWeekValue: null,
+    isBeforeKickoff: false, // NEW: true if now < firstGame
   });
 
   useEffect(() => {
@@ -98,26 +99,25 @@ function useScheduleWeek(seasonId = "nfl-2025") {
         }
 
         const now = new Date();
-        const activeIdx = rows.findIndex(
-          (w) => w.start && w.end && w.start <= now && now < w.end
-        );
+        const activeIdx = rows.findIndex((w) => w.start && w.end && w.start <= now && now < w.end);
         const nextIdx = rows.findIndex((w) => w.start && w.start > now);
-        const idx =
-          activeIdx !== -1 ? activeIdx : nextIdx !== -1 ? nextIdx : rows.length - 1;
+        const idx = activeIdx !== -1 ? activeIdx : (nextIdx !== -1 ? nextIdx : rows.length - 1);
         const display = rows[idx];
 
         const prevWeekValue =
-          idx > 0 && rows[idx - 1]?.value != null
-            ? String(rows[idx - 1].value)
-            : null;
+          idx > 0 && rows[idx - 1]?.value != null ? String(rows[idx - 1].value) : null;
+
+        const kickoffMs = display.firstGame?.getTime?.();
+        const initialBeforeKickoff = typeof kickoffMs === "number" ? kickoffMs > Date.now() : false;
 
         const tick = () => {
           const fg = display.firstGame;
-          if (!fg || fg.getTime() <= Date.now()) {
-            setState((p) => ({ ...p, countdown: "—" }));
+          const fgMs = fg?.getTime?.();
+          if (!fg || typeof fgMs !== "number" || fgMs <= Date.now()) {
+            setState((p) => ({ ...p, countdown: "—", isBeforeKickoff: false }));
             return;
           }
-          const ms = fg.getTime() - Date.now();
+          const ms = fgMs - Date.now();
           const total = Math.floor(ms / 1000);
           const d = Math.floor(total / 86400);
           const h = Math.floor((total % 86400) / 3600);
@@ -126,6 +126,7 @@ function useScheduleWeek(seasonId = "nfl-2025") {
           setState((p) => ({
             ...p,
             countdown: `${pad(d)}:${pad(h)}:${pad(m)}:${pad(s)}`,
+            isBeforeKickoff: true,
           }));
         };
 
@@ -142,6 +143,7 @@ function useScheduleWeek(seasonId = "nfl-2025") {
           end: display.end ?? null,
           order: display.order ?? null,
           prevWeekValue,
+          isBeforeKickoff: initialBeforeKickoff,
         });
 
         tick();
@@ -149,7 +151,7 @@ function useScheduleWeek(seasonId = "nfl-2025") {
         intervalId = setInterval(tick, 1000);
       } catch (e) {
         console.error("schedule load error", e);
-        setState((p) => ({ ...p, loading: false, countdown: "—" }));
+        setState((p) => ({ ...p, loading: false, countdown: "—", isBeforeKickoff: false }));
       }
     })();
 
@@ -253,6 +255,7 @@ export default function Dashboard() {
     value,
     countdown,
     prevWeekValue,
+    isBeforeKickoff, // NEW
   } = useScheduleWeek("nfl-2025");
 
   const currentResultsWeekNumber = Number(value ?? "1");
@@ -359,7 +362,12 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "picks"))}
             icon={ClipboardList}
             label="Manage Your Picks"
-            disabled={!seasonYear || !seasonType || !routeWeekPicks}
+            disabled={
+              !seasonYear ||
+              !seasonType ||
+              !routeWeekPicks ||
+              !isBeforeKickoff // NEW: disable at/after kickoff
+            }
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsThis, "results"))}
