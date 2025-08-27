@@ -1,5 +1,5 @@
 // pages/profile.js
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -9,18 +9,29 @@ import { useTheme } from "next-themes";
 export default function ProfilePage() {
   const router = useRouter();
   const { setTheme } = useTheme();
+  const from = useMemo(() => router.query.from || "/dashboard", [router.query.from]);
 
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     displayName: "",
     theme: "light",
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+
+  // Derived validation state
+  const isAnon = !!user?.isAnonymous;
+  const fieldsOk = useMemo(() => {
+    const dn = form.displayName?.trim();
+    const fn = form.firstName?.trim();
+    const ln = form.lastName?.trim();
+    if (isAnon) return !!dn;
+    return !!dn && !!fn && !!ln;
+  }, [form, isAnon]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -30,32 +41,35 @@ export default function ProfilePage() {
         return;
       }
 
-      const ref = doc(db, "users", u.uid);
-      const snap = await getDoc(ref);
+      try {
+        const ref = doc(db, "users", u.uid);
+        const snap = await getDoc(ref);
 
-      if (snap.exists()) {
-        const data = snap.data();
-        setProfile(data);
-        setForm({
-          firstName: data.firstName || "",
-          lastName: data.lastName || "",
-          displayName: data.displayName || "",
-          theme: data.theme || "light",
-        });
-        // Ensure the app reflects the currently saved theme on load
-        if (data?.theme === "light" || data?.theme === "dark") {
-          setTheme(data.theme);
+        if (snap.exists()) {
+          const data = snap.data();
+          setForm({
+            firstName: data.firstName || "",
+            lastName: data.lastName || "",
+            displayName: data.displayName || "",
+            theme: data.theme || "light",
+          });
+          if (data?.theme === "light" || data?.theme === "dark") {
+            setTheme(data.theme);
+          }
+        } else {
+          setForm({
+            firstName: "",
+            lastName: "",
+            displayName: "",
+            theme: "light",
+          });
         }
-      } else {
-        setForm({
-          firstName: "",
-          lastName: "",
-          displayName: "",
-          theme: "light",
-        });
+      } catch (e) {
+        console.error(e);
+        setError("Failed to load profile.");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return unsub;
@@ -63,12 +77,27 @@ export default function ProfilePage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value })); // no theme preview here
+    setForm((f) => ({ ...f, [name]: value }));
+    if (error) setError("");
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!user) return;
+
+    // Client-side required checks
+    const dn = form.displayName.trim();
+    const fn = form.firstName.trim();
+    const ln = form.lastName.trim();
+
+    if (!dn || (!isAnon && (!fn || !ln))) {
+      setError(
+        isAnon
+          ? "Display Name is required."
+          : "Display Name, First Name, and Last Name are required."
+      );
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -76,15 +105,10 @@ export default function ProfilePage() {
     try {
       const ref = doc(db, "users", user.uid);
       const dataToSave = {
-        displayName: form.displayName,
+        displayName: dn,
         theme: form.theme,
         isGuest: user.isAnonymous,
-        ...(user.isAnonymous
-          ? {}
-          : {
-              firstName: form.firstName,
-              lastName: form.lastName,
-            }),
+        ...(user.isAnonymous ? {} : { firstName: fn, lastName: ln }),
       };
 
       await setDoc(ref, dataToSave, { merge: true });
@@ -94,7 +118,8 @@ export default function ProfilePage() {
         setTheme(form.theme);
       }
 
-      router.push("/dashboard");
+      // Redirect back to where they came from
+      router.replace(typeof from === "string" ? from : "/dashboard");
     } catch (err) {
       console.error(err);
       setError("Failed to update profile.");
@@ -134,7 +159,7 @@ export default function ProfilePage() {
           />
         </div>
 
-        {!user?.isAnonymous && (
+        {!isAnon && (
           <>
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium mb-1">
@@ -168,27 +193,27 @@ export default function ProfilePage() {
           </>
         )}
 
-<div>
-  <label htmlFor="theme" className="block text-sm font-medium mb-1">
-    Theme Preference
-  </label>
-  <select
-  id="theme"
-  name="theme"
-  value={form.theme}
-  onChange={handleChange}
-  className="w-full border px-3 py-2 rounded dark:bg-gray-700 bg-white dark:border-gray-600 border-gray-300 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
->
-  <option value="light">Light Mode</option>
-  <option value="dark">Dark Mode</option>
-</select>
-</div>
+        <div>
+          <label htmlFor="theme" className="block text-sm font-medium mb-1">
+            Theme Preference
+          </label>
+          <select
+            id="theme"
+            name="theme"
+            value={form.theme}
+            onChange={handleChange}
+            className="w-full border px-3 py-2 rounded dark:bg-gray-700 bg-white dark:border-gray-600 border-gray-300 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="light">Light Mode</option>
+            <option value="dark">Dark Mode</option>
+          </select>
+        </div>
 
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || !fieldsOk}
           className={`w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 ${
-            saving ? "opacity-50 cursor-wait" : ""
+            saving || !fieldsOk ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
           {saving ? "Saving..." : "Save Changes"}

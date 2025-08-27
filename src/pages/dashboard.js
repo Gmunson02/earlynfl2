@@ -1,3 +1,4 @@
+// src/pages/dashboard.js
 import React, { useEffect, useCallback, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -11,14 +12,21 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
-import { Calendar, ClipboardList, Clock, TrendingUp, Settings, PlayCircle } from "lucide-react";
+import {
+  Calendar,
+  ClipboardList,
+  Clock,
+  TrendingUp,
+  Settings,
+  PlayCircle,
+} from "lucide-react";
 import { motion } from "framer-motion";
+import useRequireProfile from "../hooks/useRequireProfile";
 
 // ---- hooks -------------------------------------------------
 
 function useUserName() {
-  const [userName, setUserName] = useState("Guest"); 
-
+  const [userName, setUserName] = useState("Guest");
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return setUserName("Guest");
@@ -31,7 +39,6 @@ function useUserName() {
     });
     return () => unsub();
   }, []);
-
   return userName;
 }
 
@@ -52,16 +59,16 @@ function useScheduleWeek(seasonId = "nfl-2025") {
   const [state, setState] = useState({
     loading: true,
     seasonYear: null,
-    seasonType: null,  // e.g., "reg", "post"
+    seasonType: null, // "reg" | "post"
     label: "",
-    displayLabel: "",  // no preseason override anymore; mirrors label
-    value: null,       // ESPN week value (string) - use for PICKS/RESULTS
+    displayLabel: "",
+    value: null,
     countdown: "—",
     firstGame: null,
     start: null,
     end: null,
-    order: null,       // calendar order if you need it, not used for routing now
-    prevWeekValue: null, // previous entry's ESPN value (for "Last Week's Results")
+    order: null,
+    prevWeekValue: null,
   });
 
   useEffect(() => {
@@ -91,13 +98,18 @@ function useScheduleWeek(seasonId = "nfl-2025") {
         }
 
         const now = new Date();
-        const activeIdx = rows.findIndex((w) => w.start && w.end && w.start <= now && now < w.end);
+        const activeIdx = rows.findIndex(
+          (w) => w.start && w.end && w.start <= now && now < w.end
+        );
         const nextIdx = rows.findIndex((w) => w.start && w.start > now);
-        const idx = activeIdx !== -1 ? activeIdx : (nextIdx !== -1 ? nextIdx : rows.length - 1);
+        const idx =
+          activeIdx !== -1 ? activeIdx : nextIdx !== -1 ? nextIdx : rows.length - 1;
         const display = rows[idx];
 
         const prevWeekValue =
-          idx > 0 && rows[idx - 1]?.value != null ? String(rows[idx - 1].value) : null;
+          idx > 0 && rows[idx - 1]?.value != null
+            ? String(rows[idx - 1].value)
+            : null;
 
         const tick = () => {
           const fg = display.firstGame;
@@ -111,7 +123,10 @@ function useScheduleWeek(seasonId = "nfl-2025") {
           const h = Math.floor((total % 86400) / 3600);
           const m = Math.floor((total % 3600) / 60);
           const s = total % 60;
-          setState((p) => ({ ...p, countdown: `${pad(d)}:${pad(h)}:${pad(m)}:${pad(s)}` }));
+          setState((p) => ({
+            ...p,
+            countdown: `${pad(d)}:${pad(h)}:${pad(m)}:${pad(s)}`,
+          }));
         };
 
         setState({
@@ -119,7 +134,7 @@ function useScheduleWeek(seasonId = "nfl-2025") {
           seasonYear: display.seasonYear ?? null,
           seasonType: display.seasonType ?? null,
           label: display.label ?? "",
-          displayLabel: display.label ?? "", // no special casing
+          displayLabel: display.label ?? "",
           value: display.value ?? null,
           countdown: "—",
           firstGame: display.firstGame ?? null,
@@ -146,7 +161,6 @@ function useScheduleWeek(seasonId = "nfl-2025") {
 
 /**
  * Reads last week's winner given the current results week number (ESPN value).
- * Regular season uses ESPN `value` for both current and previous.
  */
 function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
   const [data, setData] = useState(null);
@@ -169,7 +183,9 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
       const winnersRaw = Array.isArray(d.winners) ? d.winners : [];
 
       const winnersNorm = winnersRaw.map((w) =>
-        typeof w === "string" ? { uid: w, displayName: w } : { uid: w.uid, displayName: w.displayName || w.uid }
+        typeof w === "string"
+          ? { uid: w, displayName: w }
+          : { uid: w.uid, displayName: w.displayName || w.uid }
       );
 
       const winners = winnersNorm.map((w) => {
@@ -196,7 +212,12 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
 
 // ---- UI bits -----------------------------------------------
 
-const ActionButton = React.memo(function ActionButton({ onClick, icon: Icon, label, disabled = false }) {
+const ActionButton = React.memo(function ActionButton({
+  onClick,
+  icon: Icon,
+  label,
+  disabled = false,
+}) {
   return (
     <motion.button
       whileHover={!disabled ? { scale: 1.05 } : {}}
@@ -221,25 +242,27 @@ export default function Dashboard() {
   const router = useRouter();
   const userName = useUserName();
 
+  // Call hooks unconditionally to keep hook order stable
+  const profileStatus = useRequireProfile(); // "checking" | "ok" | "redirected"
+
   const {
     loading,
     seasonYear,
     seasonType,
-    displayLabel,  // now just whatever label is stored, no preseason override
-    value,         // ESPN week value (string) — use for PICKS & RESULTS
+    displayLabel,
+    value,
     countdown,
-    prevWeekValue, // previous entry's ESPN value (for "Last Week’s Results")
+    prevWeekValue,
   } = useScheduleWeek("nfl-2025");
 
-  // Routing: always use ESPN week value in regular season
-  const routeWeekPicks = value ?? "1";
-  const routeWeekResultsThis = value ?? "1";
-  const routeWeekResultsPrev = prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1");
-
-  // Last week winners use ESPN current results week value
   const currentResultsWeekNumber = Number(value ?? "1");
-  const lastWeek = useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType);
+  const lastWeek = useLastWeekWinner(
+    currentResultsWeekNumber,
+    seasonYear,
+    seasonType
+  );
 
+  // Define hooks BEFORE any conditional return
   const safeYear = seasonYear ?? new Date().getFullYear();
   const linkFor = (y, s, w, leaf) => `/${y}/${s}/${w}/${leaf}`;
 
@@ -250,6 +273,17 @@ export default function Dashboard() {
     },
     [router, seasonYear, seasonType]
   );
+
+  // Only now is it safe to conditionally return early
+  if (profileStatus === "checking") {
+    return null; // or a tiny skeleton
+  }
+
+  // Routing helpers (always use ESPN value in regular season)
+  const routeWeekPicks = value ?? "1";
+  const routeWeekResultsThis = value ?? "1";
+  const routeWeekResultsPrev =
+    prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1");
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-gradient-to-tr dark:from-gray-950 dark:to-gray-900 text-zinc-900 dark:text-white px-6 py-4 pb-32">
@@ -337,7 +371,6 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
             icon={Clock}
             label="Last Week’s Results"
-           // disabled={!seasonYear || !seasonType || !routeWeekResultsPrev}
             disabled={true}
           />
           <ActionButton
@@ -346,12 +379,18 @@ export default function Dashboard() {
             label="Matchups"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
-          <ActionButton onClick={go("/leaderboard")} icon={TrendingUp} label="Leaderboard" />
-          <ActionButton onClick={go("/profile")} icon={Settings} label="Settings" />
+          <ActionButton
+            onClick={() => router.push("/leaderboard")}
+            icon={TrendingUp}
+            label="Leaderboard"
+          />
+          <ActionButton
+            onClick={() => router.push("/profile")}
+            icon={Settings}
+            label="Settings"
+          />
         </motion.section>
       </div>
     </div>
   );
 }
-
-
