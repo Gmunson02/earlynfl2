@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, PlayCircle, Settings, TrendingUp } from "lucide-react";
+import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react"; // removed TrendingUp
 import { useEffect, useState, useMemo } from "react";
 
 function useEspnWeek() {
@@ -66,7 +66,6 @@ export default function BottomNav() {
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
     { label: "Matchups", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
-    { label: "Leaderboard", href: "/leaderboard", icon: TrendingUp, ready: true },
     { label: "Settings", href: "/profile", icon: Settings, ready: true },
   ];
 
