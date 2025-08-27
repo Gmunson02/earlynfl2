@@ -70,11 +70,33 @@ export default function PicksPage({ year, week, season, matchups }) {
   const [submittedAt, setSubmittedAt] = useState(null);
   const [lastEditedAt, setLastEditedAt] = useState(null); // NEW
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // NEW: controls whether we are still before the earliest game’s kickoff
+  const [isBeforeKickoff, setIsBeforeKickoff] = useState(true);
+
   const router = useRouter();
 
   // include season to avoid collisions (e.g., 2025-pre-W2 vs 2025-reg-W2)
   const todayKey = `${year}-${season}-W${week}`;
   const lastGame = matchups?.[matchups.length - 1] || null;
+
+  // NEW: compute earliest kickoff from ESPN data and tick once per second
+  useEffect(() => {
+    const firstGameIso = matchups?.[0]?.gameDate || null;
+    const firstMs = firstGameIso ? new Date(firstGameIso).getTime() : null;
+
+    const tick = () => {
+      if (!firstMs || Number.isNaN(firstMs)) {
+        setIsBeforeKickoff(false);
+      } else {
+        setIsBeforeKickoff(Date.now() < firstMs);
+      }
+    };
+
+    tick(); // initial
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [matchups]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
@@ -161,6 +183,8 @@ export default function PicksPage({ year, week, season, matchups }) {
   };
 
   const toggleLock = () => {
+    // NEW: safety guard – do not unlock after kickoff
+    if (!isBeforeKickoff) return;
     setSubmitted(false);
     setHasUnlocked(true);
     // Do not delete timestamps from local state
@@ -198,7 +222,8 @@ export default function PicksPage({ year, week, season, matchups }) {
         </div>
       )}
 
-      {submitted && (
+      {/* NEW: Hide Unlock button once the first game starts */}
+      {submitted && isBeforeKickoff && (
         <div className="flex justify-center mb-4">
           <button
             onClick={toggleLock}
