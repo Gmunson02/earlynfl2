@@ -15,7 +15,7 @@ import {
 
 // You can wire these to router/query params later
 const YEAR = 2025;
-const SEASON = "pre";
+const SEASON = "reg"; // <<< regular season only
 
 export default function LeaderboardPage() {
   const [seasonDoc, setSeasonDoc] = useState(null);
@@ -23,9 +23,19 @@ export default function LeaderboardPage() {
   const [latestWeekly, setLatestWeekly] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Only load data for regular season
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+
+      if (SEASON !== "reg") {
+        // Not regular season -> do not load leaderboard data
+        setSeasonDoc(null);
+        setWeeklyDocs([]);
+        setLatestWeekly(null);
+        setLoading(false);
+        return;
+      }
 
       // Season aggregate (Points)
       const sSnap = await getDoc(doc(db, "season_leaderboard", `${YEAR}-${SEASON}`));
@@ -140,6 +150,28 @@ export default function LeaderboardPage() {
   }, [seasonDoc, weeklyWinsMap]);
 
   const prevWeek = Math.max((latestWeekly?.week || 1) - 1, 1);
+
+  // If not regular season, show a simple message instead of the leaderboard
+  if (SEASON !== "reg") {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white px-4 py-6">
+        <Head>
+          <title>Leaderboard • Regular Season Only</title>
+        </Head>
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-3xl font-extrabold mb-2">Leaderboard</h1>
+          <p className="text-zinc-600 dark:text-zinc-300">
+            The leaderboard is available during the <strong>regular season</strong> only.
+          </p>
+          <div className="mt-4">
+            <Link href="/dashboard" className="text-indigo-600 hover:underline">
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white px-4 py-6">
