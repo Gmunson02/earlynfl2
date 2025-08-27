@@ -46,23 +46,22 @@ function tsToDate(x) {
 /**
  * Reads schedules/{seasonId}/weeks ordered by 'order'.
  * Picks active (start <= now < end) else next upcoming (start > now) else last.
- * Returns label overrides for preseason (displayLabel = "Preseason Week {order+1}"),
- * ESPN week `value` (string) for routes, and `order` for display math.
+ * Returns ESPN week `value` (string) for routes, plus helpful timing fields.
  */
 function useScheduleWeek(seasonId = "nfl-2025") {
   const [state, setState] = useState({
     loading: true,
     seasonYear: null,
-    seasonType: null,  // "pre" | "reg"
+    seasonType: null,  // e.g., "reg", "post"
     label: "",
-    displayLabel: "",
-    value: null,       // ESPN week value (string) - use for PICKS
+    displayLabel: "",  // no preseason override anymore; mirrors label
+    value: null,       // ESPN week value (string) - use for PICKS/RESULTS
     countdown: "—",
     firstGame: null,
     start: null,
     end: null,
-    order: null,       // 0-based; display week = order+1 (preseason only)
-    prevWeekValue: null, // previous entry's ESPN value (handy for regular season)
+    order: null,       // calendar order if you need it, not used for routing now
+    prevWeekValue: null, // previous entry's ESPN value (for "Last Week's Results")
   });
 
   useEffect(() => {
@@ -100,12 +99,6 @@ function useScheduleWeek(seasonId = "nfl-2025") {
         const prevWeekValue =
           idx > 0 && rows[idx - 1]?.value != null ? String(rows[idx - 1].value) : null;
 
-        // Preseason-only display label override
-        const isPre = (display.seasonType ?? "") === "pre";
-        const displayLabel = isPre && typeof display.order === "number"
-          ? `Preseason Week ${display.order + 1}`
-          : (display.label ?? "");
-
         const tick = () => {
           const fg = display.firstGame;
           if (!fg || fg.getTime() <= Date.now()) {
@@ -126,7 +119,7 @@ function useScheduleWeek(seasonId = "nfl-2025") {
           seasonYear: display.seasonYear ?? null,
           seasonType: display.seasonType ?? null,
           label: display.label ?? "",
-          displayLabel,
+          displayLabel: display.label ?? "", // no special casing
           value: display.value ?? null,
           countdown: "—",
           firstGame: display.firstGame ?? null,
@@ -152,8 +145,8 @@ function useScheduleWeek(seasonId = "nfl-2025") {
 }
 
 /**
- * Reads last week's winner given a "current results week number".
- * For preseason we pass displayWeekThis (order+1). For regular season we pass ESPN value.
+ * Reads last week's winner given the current results week number (ESPN value).
+ * Regular season uses ESPN `value` for both current and previous.
  */
 function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
   const [data, setData] = useState(null);
@@ -232,31 +225,19 @@ export default function Dashboard() {
     loading,
     seasonYear,
     seasonType,
-    displayLabel,  // "Preseason Week {order+1}" during preseason
-    value,         // ESPN week value (string) — use for PICKS
+    displayLabel,  // now just whatever label is stored, no preseason override
+    value,         // ESPN week value (string) — use for PICKS & RESULTS
     countdown,
-    prevWeekValue, // previous entry's ESPN value (for regular season)
-    order,         // 0-based; display week = order+1 (preseason only)
+    prevWeekValue, // previous entry's ESPN value (for "Last Week’s Results")
   } = useScheduleWeek("nfl-2025");
 
-  // --- Preseason-specific routing math ----------------------
-  const isPre = seasonType === "pre";
-  const displayWeekThis = typeof order === "number" ? String(order + 1) : (value ?? "1");
-  const displayWeekPrev = typeof order === "number" ? String(Math.max(1, order)) : "1";
-
-  // Picks should continue to use ESPN `value`
+  // Routing: always use ESPN week value in regular season
   const routeWeekPicks = value ?? "1";
+  const routeWeekResultsThis = value ?? "1";
+  const routeWeekResultsPrev = prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1");
 
-  // Results routing:
-  // - Preseason: use display week numbers (order+1 for "this", order for "prev")
-  // - Regular: use ESPN value + prevWeekValue from calendar order
-  const routeWeekResultsThis = isPre ? displayWeekThis : (value ?? "1");
-  const routeWeekResultsPrev = isPre
-    ? displayWeekPrev
-    : (prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1"));
-
-  // Last week winners also need the "current results week number"
-  const currentResultsWeekNumber = Number(isPre ? displayWeekThis : (value ?? "1"));
+  // Last week winners use ESPN current results week value
+  const currentResultsWeekNumber = Number(value ?? "1");
   const lastWeek = useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType);
 
   const safeYear = seasonYear ?? new Date().getFullYear();
@@ -356,7 +337,8 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
             icon={Clock}
             label="Last Week’s Results"
-            disabled={!seasonYear || !seasonType || !routeWeekResultsPrev}
+           // disabled={!seasonYear || !seasonType || !routeWeekResultsPrev}
+            disabled={true}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
