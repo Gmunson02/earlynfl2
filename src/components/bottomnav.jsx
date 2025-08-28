@@ -40,6 +40,8 @@ function useEspnWeek() {
   return state; // { seasonYear, week, seasonType }
 }
 
+// ...imports unchanged...
+
 export default function BottomNav() {
   const router = useRouter();
   const { seasonYear, week, seasonType } = useEspnWeek();
@@ -51,12 +53,10 @@ export default function BottomNav() {
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "picks"),
     [seasonYear, seasonType, week]
   );
-
   const resultsHref = useMemo(
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "results"),
     [seasonYear, seasonType, week]
   );
-
   const matchupsHref = useMemo(
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "gamecenter"),
     [seasonYear, seasonType, week]
@@ -76,21 +76,18 @@ export default function BottomNav() {
         {navItems.map((item) => {
           const isActive = item.href ? router.asPath.startsWith(item.href) : false;
           const Icon = item.icon;
+
           const content = (
             <>
               <Icon
                 size={22}
-                className={
-                  isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-gray-500 dark:text-gray-400"
-                }
+                className={isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400"}
               />
               <span
                 className={
-                  isActive
+                  (isActive
                     ? "mt-1 text-indigo-600 dark:text-indigo-400 font-medium"
-                    : "mt-1 text-gray-500 dark:text-gray-400"
+                    : "mt-1 text-gray-500 dark:text-gray-400") + " leading-none"
                 }
               >
                 {item.label}
@@ -101,13 +98,14 @@ export default function BottomNav() {
           return (
             <li key={item.label} className="flex flex-col items-center text-xs">
               {item.ready ? (
-                <Link href={item.href} className="flex flex-col items-center">
+                // prevent underline across the whole tab (iOS Safari)
+                <Link href={item.href} className="flex flex-col items-center no-underline [text-decoration:none]">
                   {content}
                 </Link>
               ) : (
                 <span
                   aria-disabled
-                  className="flex flex-col items-center opacity-50 cursor-not-allowed"
+                  className="flex flex-col items-center opacity-50 cursor-not-allowed no-underline [text-decoration:none]"
                   title="Loading week…"
                 >
                   {content}
@@ -120,3 +118,4 @@ export default function BottomNav() {
     </nav>
   );
 }
+
