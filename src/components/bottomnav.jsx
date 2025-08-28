@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react"; // removed TrendingUp
+import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 
 function useEspnWeek() {
@@ -37,10 +37,8 @@ function useEspnWeek() {
     };
   }, []);
 
-  return state; // { seasonYear, week, seasonType }
+  return state;
 }
-
-// ...imports unchanged...
 
 export default function BottomNav() {
   const router = useRouter();
@@ -53,10 +51,12 @@ export default function BottomNav() {
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "picks"),
     [seasonYear, seasonType, week]
   );
+
   const resultsHref = useMemo(
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "results"),
     [seasonYear, seasonType, week]
   );
+
   const matchupsHref = useMemo(
     () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "gamecenter"),
     [seasonYear, seasonType, week]
@@ -81,7 +81,11 @@ export default function BottomNav() {
             <>
               <Icon
                 size={22}
-                className={isActive ? "text-indigo-600 dark:text-indigo-400" : "text-gray-500 dark:text-gray-400"}
+                className={
+                  isActive
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-gray-500 dark:text-gray-400"
+                }
               />
               <span
                 className={
@@ -98,14 +102,16 @@ export default function BottomNav() {
           return (
             <li key={item.label} className="flex flex-col items-center text-xs">
               {item.ready ? (
-                // prevent underline across the whole tab (iOS Safari)
-                <Link href={item.href} className="flex flex-col items-center no-underline [text-decoration:none]">
+                <Link
+                  href={item.href}
+                  className="flex flex-col items-center !no-underline [text-decoration:none!important]"
+                >
                   {content}
                 </Link>
               ) : (
                 <span
                   aria-disabled
-                  className="flex flex-col items-center opacity-50 cursor-not-allowed no-underline [text-decoration:none]"
+                  className="flex flex-col items-center opacity-50 cursor-not-allowed !no-underline [text-decoration:none!important]"
                   title="Loading week…"
                 >
                   {content}
@@ -118,4 +124,3 @@ export default function BottomNav() {
     </nav>
   );
 }
-
