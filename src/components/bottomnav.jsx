@@ -73,7 +73,7 @@ export default function BottomNav() {
   return (
     <nav
       // removed `transform-gpu` to avoid iOS PWA hairline artifact
-      className="fixed bottom-0 inset-x-0 z-50 isolate bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-md h-16 pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-md h-20 pb-[env(safe-area-inset-bottom)]"
     >
       <ul className="flex justify-evenly items-center h-full">
         {navItems.map((item) => {
