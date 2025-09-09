@@ -6,11 +6,10 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
-// ---------- Config ----------
 const DEFAULT_YEAR = 2025;
-const DEFAULT_SEASON = "pre"; // "pre" | "reg" | "post"
-const DEFAULT_WEEK = 2;       // preseason week 2
-const MAX_WEEKS = 18;         // adjust if needed for post-season
+const DEFAULT_SEASON = "reg"; // "pre" | "reg" | "post"
+const DEFAULT_WEEK = 1;       // start at regular season week 1
+const MAX_WEEKS = 18;
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const ESPN_URL = (y, w, type) =>
