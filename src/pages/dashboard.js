@@ -379,7 +379,6 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
             icon={Clock}
             label="Last Week’s Results"
-            disabled={true}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
