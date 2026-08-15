@@ -319,7 +319,6 @@ export default function AdminPage() {
                   </th>
                   <th className="text-right px-3 py-2">2026 Winnings</th>
                   <th className="text-right px-3 py-2">Current Balance</th>
-                  <th className="text-left px-3 py-2">Notes</th>
                   <th className="text-center px-3 py-2">Submitted</th>
                   <th className="text-center px-3 py-2">Actions</th>
                 </tr>
@@ -377,13 +376,6 @@ export default function AdminPage() {
                         }`}
                       >
                         ${currentBalance.toFixed(2)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <EditableCell
-                          value={l.notes}
-                          width="w-48"
-                          onSave={(v) => saveLedgerField(u.uid, "notes", v)}
-                        />
                       </td>
                       <td className="px-3 py-2 text-center">
                         {submitted ? (
