@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { db } from "../../../../lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
 
@@ -40,8 +40,8 @@ export default function ScoresPage() {
       const seasontype = TYPE_MAP[season] ?? 2;
       const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
-      const [picksSnap, usersSnap, espnData] = await Promise.all([
-        getDocs(collection(db, "picks")),
+      const [weeksSnap, usersSnap, espnData] = await Promise.all([
+        getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
         getDocs(collection(db, "users")),
         fetch(apiUrl).then((r) => r.json()),
       ]);
@@ -53,18 +53,17 @@ export default function ScoresPage() {
       });
 
       const picks = [];
-      for (const docSnap of picksSnap.docs) {
-        const data = docSnap.data();
-        const userData = data[keyNew] || data[keyLegacy];
-        if (!userData) continue;
+      for (const docSnap of weeksSnap.docs) {
+        const userData = docSnap.data();
+        const uid = docSnap.ref.parent.parent.id;
 
         const entries = Object.entries(userData)
-          .filter(([k]) => !["tieBreaker", "displayName", "locked", "submittedAt"].includes(k))
+          .filter(([k]) => !["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey"].includes(k))
           .map(([eventID, team]) => ({ eventID, teamName: team }));
 
         picks.push({
-          uid: docSnap.id,
-          displayName: usersMap[docSnap.id] || userData.displayName || "Unknown",
+          uid,
+          displayName: usersMap[uid] || userData.displayName || "Unknown",
           picks: entries,
           tieBreaker: userData.tieBreaker || "",
         });

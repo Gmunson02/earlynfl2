@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ----------------------------
+    // Profiles
+    // ----------------------------
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest'])
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() <= 40;
+
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ----------------------------
+    // Picks
+    // Old top-level fields (picks/{userId}) are read-only history now.
+    // Live picks are one doc per week: picks/{userId}/weeks/{weekKey}
+    // ----------------------------
+    match /picks/{userId} {
+      allow read: if request.auth != null;
+      allow write: if false; // legacy doc; nothing writes here anymore
+
+      match /weeks/{weekKey} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null
+                     && request.auth.uid == userId
+                     && (
+                       isAdmin() ||
+                       request.time < get(/databases/$(database)/documents/week_locks/$(weekKey)).data.locksAt
+                     );
+      }
+    }
+
+    // ----------------------------
+    // Lock times for each week, admin-only write
+    // ----------------------------
+    match /week_locks/{weekKey} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ----------------------------
+    // (Legacy) Leaderboard aggregate (public read-only)
+    // ----------------------------
+    match /leaderboard/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ----------------------------
+    // Weekly results (public read-only)
+    // ----------------------------
+    match /weekly_results/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ----------------------------
+    // Season leaderboard (public read-only)
+    // ----------------------------
+    match /season_leaderboard/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ----------------------------
+    // Schedules (public read, admin-only write)
+    // ----------------------------
+    match /schedules/{seasonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /weeks/{weekId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // ----------------------------
+    // Deny everything else by default
+    // ----------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

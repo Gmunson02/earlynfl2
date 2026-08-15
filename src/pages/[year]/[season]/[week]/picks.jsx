@@ -102,15 +102,15 @@ export default function PicksPage({ year, week, season, matchups }) {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const docRef = doc(db, "picks", u.uid);
-        const docSnap = await getDoc(docRef);
+        const weekRef = doc(db, "picks", u.uid, "weeks", todayKey);
+        const weekSnap = await getDoc(weekRef);
 
         const userRef = doc(db, "users", u.uid);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) setUserProfile(userSnap.data());
 
-        if (docSnap.exists() && docSnap.data()[todayKey]) {
-          const pickData = docSnap.data()[todayKey];
+        if (weekSnap.exists()) {
+          const pickData = weekSnap.data();
           setPicks(pickData);
           setTieBreaker(pickData.tieBreaker || "");
           setSubmitted(pickData.locked ?? true);
@@ -146,29 +146,28 @@ export default function PicksPage({ year, week, season, matchups }) {
 
     try {
       const now = new Date().toISOString();
-      const ref = doc(collection(db, "picks"), user.uid);
+      const ref = doc(db, "picks", user.uid, "weeks", todayKey);
 
       // Read existing to preserve original submittedAt
       const existingSnap = await getDoc(ref);
-      const existing = existingSnap.exists() ? existingSnap.data()?.[todayKey] : null;
+      const existing = existingSnap.exists() ? existingSnap.data() : null;
       const preservedSubmittedAt = existing?.submittedAt || now; // first submit sets both to now
 
       await setDoc(
         ref,
         {
-          [todayKey]: {
-            // keep only event picks from state, spread is fine but we'll override system fields
-            ...picks,
-            tieBreaker,
-            displayName: name,
-            locked: true,
+          // keep only event picks from state, spread is fine but we'll override system fields
+          ...picks,
+          tieBreaker,
+          displayName: name,
+          locked: true,
+          weekKey: todayKey,
 
-            // leave submittedAt alone after first submit
-            submittedAt: preservedSubmittedAt,
+          // leave submittedAt alone after first submit
+          submittedAt: preservedSubmittedAt,
 
-            // always update lastEditedAt
-            lastEditedAt: now,
-          },
+          // always update lastEditedAt
+          lastEditedAt: now,
         },
         { merge: true }
       );

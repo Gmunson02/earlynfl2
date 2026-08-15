@@ -55,7 +55,7 @@ function tsToDate(x) {
  * Picks active (start <= now < end) else next upcoming (start > now) else last.
  * Returns ESPN week `value` (string) for routes, plus helpful timing fields.
  */
-function useScheduleWeek(seasonId = "nfl-2025") {
+function useScheduleWeek(seasonId = "nfl-2026") {
   const [state, setState] = useState({
     loading: true,
     seasonYear: null,
@@ -256,7 +256,7 @@ export default function Dashboard() {
     countdown,
     prevWeekValue,
     isBeforeKickoff, // NEW
-  } = useScheduleWeek("nfl-2025");
+  } = useScheduleWeek("nfl-2026");
 
   const currentResultsWeekNumber = Number(value ?? "1");
   const lastWeek = useLastWeekWinner(

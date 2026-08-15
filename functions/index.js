@@ -1,10 +1,11 @@
 // Firebase Functions v2 (Node 20)
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
-const admin = require("firebase-admin");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 const DEFAULT_YEAR = 2025;
 const DEFAULT_SEASON = "reg"; // "pre" | "reg" | "post"
@@ -78,34 +79,32 @@ async function computeWeek(year, season, week) {
     if (w?.team?.shortDisplayName) winnersByEvent[e.id] = w.team.shortDisplayName;
   }
 
-  // Load users and picks
-  const [usersSnap, picksSnap] = await Promise.all([
+  const keyNew = `${year}-${season}-W${week}`;
+
+  // Load users and this week's picks (weeks subcollection, keyed by weekKey field)
+  const [usersSnap, weeksSnap] = await Promise.all([
     db.collection("users").get(),
-    db.collection("picks").get(),
+    db.collectionGroup("weeks").where("weekKey", "==", keyNew).get(),
   ]);
 
   const usersMap = {};
   usersSnap.forEach(d => { usersMap[d.id] = d.data()?.displayName || ""; });
 
-  const keyNew = `${year}-${season}-W${week}`;
-  const keyLegacy = `${year}-W${week}`;
-
   const standings = [];
-  for (const doc of picksSnap.docs) {
-    const data = doc.data();
-    const userData = data[keyNew] || data[keyLegacy];
+  for (const doc of weeksSnap.docs) {
+    const userData = doc.data();
     if (!userData) continue;
 
     let wins = 0;
     const tb = Number(userData.tieBreaker ?? NaN);
 
     for (const [eventID, pick] of Object.entries(userData)) {
-      if (["tieBreaker","displayName","locked","submittedAt"].includes(eventID)) continue;
+      if (["tieBreaker","displayName","locked","submittedAt","lastEditedAt","weekKey"].includes(eventID)) continue;
       const w = winnersByEvent[eventID];
       if (w && w === pick) wins++;
     }
 
-    const uid = doc.id;
+    const uid = doc.ref.parent.parent.id;
     const displayName = usersMap[uid] || userData.displayName || "Unknown";
 
     standings.push({
@@ -130,7 +129,7 @@ async function computeWeek(year, season, week) {
   const weeklyDoc = {
     year, season, week,
     lastGameTotal,
-    computedAt: admin.firestore.FieldValue.serverTimestamp(),
+    computedAt: FieldValue.serverTimestamp(),
     standings: (enriched.length ? enriched : standings).map(s => ({
       uid: s.uid,
       displayName: s.displayName || null,
@@ -161,7 +160,7 @@ async function computeWeek(year, season, week) {
 
   await seasonRef.set({
     year, season,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     players,
   }, { merge: true });
 
