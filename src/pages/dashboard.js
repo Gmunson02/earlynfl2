@@ -12,10 +12,12 @@ import {
   TrendingUp,
   Settings,
   PlayCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import useRequireProfile from "../hooks/useRequireProfile";
 import useScheduleWeek from "../hooks/useScheduleWeek";
+import useIsAdmin from "../hooks/useIsAdmin";
 import { loadSeasonStandingsByName } from "../lib/seasonStandings";
 import InstallPrompt from "../components/InstallPrompt";
 
@@ -146,6 +148,7 @@ export default function Dashboard() {
 
   // Call hooks unconditionally to keep hook order stable
   const profileStatus = useRequireProfile(); // "checking" | "ok" | "redirected"
+  const adminStatus = useIsAdmin(); // "checking" | "admin" | "not-admin"
 
   const {
     loading,
@@ -314,6 +317,13 @@ export default function Dashboard() {
             icon={Settings}
             label="Settings"
           />
+          {adminStatus === "admin" && (
+            <ActionButton
+              onClick={() => router.push("/admin")}
+              icon={ShieldCheck}
+              label="Admin"
+            />
+          )}
         </motion.section>
       </div>
     </div>
