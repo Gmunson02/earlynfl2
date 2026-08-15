@@ -194,34 +194,53 @@ export default function ScoresPage() {
     [uniqueEventIDs, eventMap]
   );
 
-  // Cheap O(users) math-elimination/clinch check, no combinatorics: a
+  // Shared lookup maps for the scenario/quick-status checks below, built
+  // once per data refresh instead of once per expanded user per render.
+  const picksByUid = useMemo(
+    () => new Map(submissions.map((s) => [s.uid, new Map(s.picks.map((p) => [p.eventID, p.teamName]))])),
+    [submissions]
+  );
+  const decidedByUid = useMemo(() => new Map(submissions.map((s) => [s.uid, s.winnerCount])), [submissions]);
+
+  // Top-2 win counts (by uid) let computeQuickStatus answer "what's the max
+  // among everyone ELSE" in O(1) per user instead of re-scanning all users.
+  const topTwoWinCounts = useMemo(() => {
+    let first = { uid: null, wins: -Infinity };
+    let second = { uid: null, wins: -Infinity };
+    for (const s of submissions) {
+      if (s.winnerCount > first.wins) {
+        second = first;
+        first = { uid: s.uid, wins: s.winnerCount };
+      } else if (s.winnerCount > second.wins) {
+        second = { uid: s.uid, wins: s.winnerCount };
+      }
+    }
+    return [first, second];
+  }, [submissions]);
+
+  // Cheap O(1)-per-user math-elimination/clinch check, no combinatorics: a
   // user's guaranteed floor is their current wins (remaining games can only
   // help), and their ceiling is current wins + every remaining game. Works
   // regardless of how many games remain, so it can run even early in the
   // week when the full brute-force scenario below is gated off.
   const computeQuickStatus = useCallback(
     (targetUid) => {
-      const target = submissions.find((s) => s.uid === targetUid);
-      if (!target) return null;
+      const targetWins = decidedByUid.get(targetUid);
+      if (targetWins == null) return null;
       const remainingCount = remainingEventIDs.length;
-      const targetFloor = target.winnerCount;
-      const targetCeiling = target.winnerCount + remainingCount;
+      const targetFloor = targetWins;
+      const targetCeiling = targetWins + remainingCount;
 
-      let maxOtherFloor = -Infinity;
-      let maxOtherCeiling = -Infinity;
-      for (const s of submissions) {
-        if (s.uid === targetUid) continue;
-        if (s.winnerCount > maxOtherFloor) maxOtherFloor = s.winnerCount;
-        const ceiling = s.winnerCount + remainingCount;
-        if (ceiling > maxOtherCeiling) maxOtherCeiling = ceiling;
-      }
+      const [first, second] = topTwoWinCounts;
+      const maxOtherFloor = first.uid === targetUid ? second.wins : first.wins;
+      const maxOtherCeiling = maxOtherFloor === -Infinity ? -Infinity : maxOtherFloor + remainingCount;
 
       if (maxOtherFloor === -Infinity) return "locked"; // sole participant
       if (targetFloor > maxOtherCeiling) return "locked";
       if (targetCeiling < maxOtherFloor) return "eliminated";
       return null; // still alive, not clinched — needs the detailed breakdown
     },
-    [submissions, remainingEventIDs]
+    [decidedByUid, remainingEventIDs, topTwoWinCounts]
   );
 
   // Enumerates every possible outcome of the remaining games to find which
@@ -232,11 +251,6 @@ export default function ScoresPage() {
   const buildScenario = useCallback(
     (targetUid) => {
       if (remainingEventIDs.length === 0 || remainingEventIDs.length > MAX_SCENARIO_GAMES) return null;
-
-      const picksByUid = new Map(
-        submissions.map((s) => [s.uid, new Map(s.picks.map((p) => [p.eventID, p.teamName]))])
-      );
-      const decidedByUid = new Map(submissions.map((s) => [s.uid, s.winnerCount]));
 
       const totalCombos = 2 ** remainingEventIDs.length;
       const winningCombos = [];
@@ -288,7 +302,7 @@ export default function ScoresPage() {
         fullyDetermined: necessary.length === remainingEventIDs.length,
       };
     },
-    [remainingEventIDs, submissions, eventMap]
+    [remainingEventIDs, submissions, eventMap, picksByUid, decidedByUid]
   );
 
   const totals = useMemo(() => {
