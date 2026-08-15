@@ -619,11 +619,11 @@ export default function ScoresPage() {
 
         return (
           <div
-            className="sm:hidden fixed inset-0 z-50 flex items-end bg-black/50"
+            className="sm:hidden fixed inset-0 z-[60] flex items-end bg-black/50"
             onClick={() => setSelectedGameID(null)}
           >
             <div
-              className="w-full max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4"
+              className="w-full max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-3">
