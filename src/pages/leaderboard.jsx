@@ -2,59 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import { db } from "../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { loadSeasonStandingsByName } from "../lib/seasonStandings";
 
 const CURRENT_YEAR = 2026;
 const CURRENT_SEASON = "reg"; // standings only count regular season
 
 const LAST_YEAR = 2025;
 const LAST_SEASON = "reg";
-
-// Loads a full season's standings, summed by display name so a person's
-// fragmented guest accounts (same name, different uids) count as one entry.
-async function loadSeasonStandingsByName(year, season) {
-  const seasonId = `${year}-${season}`;
-  const seasonSnap = await getDoc(doc(db, "season_leaderboard", seasonId));
-  if (!seasonSnap.exists()) return [];
-  const players = seasonSnap.data().players || {};
-
-  const weeklySnap = await getDocs(
-    query(collection(db, "weekly_results"), where("year", "==", year), where("season", "==", season))
-  );
-  const titleWins = {};
-  weeklySnap.forEach((d) => {
-    (d.data().winners || []).forEach((w) => {
-      const uid = typeof w === "string" ? w : w?.uid;
-      if (uid) titleWins[uid] = (titleWins[uid] || 0) + 1;
-    });
-  });
-
-  const byName = new Map();
-  for (const [uid, p] of Object.entries(players)) {
-    const name = (p.displayName || uid).trim();
-    const wins = titleWins[uid] || 0;
-    const points = p.totalCorrectPicks || 0;
-    const existing = byName.get(name) || { name, wins: 0, points: 0 };
-    existing.wins += wins;
-    existing.points += points;
-    byName.set(name, existing);
-  }
-
-  const merged = Array.from(byName.values());
-  merged.sort((a, b) => b.wins - a.wins || b.points - a.points || a.name.localeCompare(b.name));
-
-  let lastKey = null;
-  let rank = 0;
-  let place = 0;
-  return merged.map((r) => {
-    place += 1;
-    const key = `${r.wins}|${r.points}`;
-    if (key !== lastKey) {
-      rank = place;
-      lastKey = key;
-    }
-    return { ...r, rank };
-  });
-}
 
 export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);

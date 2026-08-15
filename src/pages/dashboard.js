@@ -22,6 +22,10 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import useRequireProfile from "../hooks/useRequireProfile";
+import { loadSeasonStandingsByName } from "../lib/seasonStandings";
+
+const LAST_SEASON_YEAR = 2025;
+const LAST_SEASON_TYPE = "reg";
 
 // ---- hooks -------------------------------------------------
 
@@ -212,6 +216,26 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
   return data;
 }
 
+/**
+ * Fallback for the "last week's winner" slot before any current-season
+ * week has been computed yet: shows last season's champion instead.
+ */
+function useLastSeasonChampion(year, season) {
+  const [champion, setChampion] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    loadSeasonStandingsByName(year, season).then((rows) => {
+      if (alive) setChampion(rows[0] || null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [year, season]);
+
+  return champion;
+}
+
 // ---- UI bits -----------------------------------------------
 
 const ActionButton = React.memo(function ActionButton({
@@ -264,6 +288,7 @@ export default function Dashboard() {
     seasonYear,
     seasonType
   );
+  const lastSeasonChampion = useLastSeasonChampion(LAST_SEASON_YEAR, LAST_SEASON_TYPE);
 
   // Define hooks BEFORE any conditional return
   const safeYear = seasonYear ?? new Date().getFullYear();
@@ -327,8 +352,8 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Last week's winner(s) */}
-          {lastWeek && lastWeek.winners?.length > 0 && (
+          {/* Last week's winner(s), or last season's champion before Week 1 wraps up */}
+          {lastWeek && lastWeek.winners?.length > 0 ? (
             <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
               <h2 className="text-sm sm:text-base font-semibold mb-2">
                 Last Week&apos;s Winner{lastWeek.winners.length > 1 ? "s" : ""}
@@ -348,7 +373,19 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-          )}
+          ) : lastSeasonChampion ? (
+            <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+              <h2 className="text-sm sm:text-base font-semibold mb-2">
+                {LAST_SEASON_YEAR} Season Champion
+              </h2>
+              <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mb-1">
+                🏆 {lastSeasonChampion.name}
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {lastSeasonChampion.wins} wins • {lastSeasonChampion.points} pts
+              </p>
+            </div>
+          ) : null}
         </motion.section>
 
         {/* Actions */}
