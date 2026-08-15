@@ -355,20 +355,31 @@ export default function GameCenter() {
       : "border-zinc-200 dark:border-zinc-700"
   }`}
 >
-{/* TOP: left = live/status/kickoff, right = network only */}
-<div className="flex justify-between items-start mb-2">
-  {isLive ? (
-    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-200 text-blue-900">
-      LIVE
-    </span>
-  ) : (
-    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-      {isPost ? statusText : formatKickoff(event.date)}
-    </p>
-  )}
-  {broadcast && !isPost && (
-    <p className="text-xs text-zinc-500 dark:text-zinc-400">{broadcast}</p>
-  )}
+{/* TOP: left = live/status/kickoff, center = RED ZONE, right = network only */}
+<div className="grid grid-cols-3 items-start mb-2">
+  <div className="flex justify-start">
+    {isLive ? (
+      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-200 text-blue-900">
+        LIVE
+      </span>
+    ) : (
+      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+        {isPost ? statusText : formatKickoff(event.date)}
+      </p>
+    )}
+  </div>
+  <div className="flex justify-center">
+    {isLive && sit.isRedZone && (
+      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-300 text-red-900">
+        RED ZONE
+      </span>
+    )}
+  </div>
+  <div className="flex justify-end">
+    {broadcast && !isPost && (
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{broadcast}</p>
+    )}
+  </div>
 </div>
 
                     {/* SCORES (🏈 next to team with possession, ring on your pick) */}
@@ -437,22 +448,13 @@ export default function GameCenter() {
                         - Upcoming: kickoff msg + odds
                         - Final: nothing */}
                     {isLive ? (
-                      <div className="mt-2 grid grid-cols-3 items-center text-sm text-zinc-600 dark:text-zinc-400">
+                      <div className="mt-2 grid grid-cols-2 items-center text-sm text-zinc-600 dark:text-zinc-400">
                         {/* Left: clock & quarter */}
                         <div className="flex items-center gap-2">
                           <span className="font-medium">
                             {(status?.displayClock || "--:--")} • Q{status?.period ?? "-"}
                           </span>
                         </div>
-
-{/* Center: RED ZONE indicator (only if in red zone) */}
-<div className="flex justify-center">
-  {sit.isRedZone && (
-    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-300 text-red-900">
-      RED ZONE
-    </span>
-  )}
-</div>
 
                         {/* Right: down & distance */}
                         <div className="flex justify-end font-medium">
