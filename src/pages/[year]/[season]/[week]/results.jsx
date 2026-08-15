@@ -307,7 +307,11 @@ export default function ScoresPage() {
               >
                 User
               </th>
-              <th className={`${W_WINS} px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
+              <th
+                className={`${W_WINS} px-2 py-1 text-center font-bold sticky left-[168px] z-30 bg-slate-800 ${borderClass}`}
+              >
+                Wins
+              </th>
 
               {uniqueEventIDs.map((id) => {
                 const g = eventMap[id];
@@ -345,7 +349,7 @@ export default function ScoresPage() {
                     {truncate14(entry.displayName)}
                   </td>
 
-                  <td className={`${W_WINS} px-2 py-1 text-center ${borderClass}`}>
+                  <td className={`${W_WINS} px-2 py-1 text-center sticky left-[168px] z-10 ${rowBg} ${borderClass}`}>
                     {entry.winnerCount}
                   </td>
 
