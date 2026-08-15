@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LazyMotion, domAnimation, m as motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import Image from "next/image";
+import { auth, db } from "../../../../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -27,6 +30,26 @@ export default function GameCenter() {
   const [reloadTick, setReloadTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isVisible, setIsVisible] = useState(true);
+  const [myPicks, setMyPicks] = useState({});
+
+  // Load the signed-in user's picks for this week so we can highlight them
+  useEffect(() => {
+    if (!year || !week) return;
+    const weekKey = `${year}-${season}-W${week}`;
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setMyPicks({});
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, "picks", user.uid, "weeks", weekKey));
+        setMyPicks(snap.exists() ? snap.data() : {});
+      } catch {
+        setMyPicks({});
+      }
+    });
+    return unsub;
+  }, [year, week, season]);
 
   const lastKeyRef = useRef(""); // for change detection
   const timeoutRef = useRef(null); // adaptive timer
@@ -270,6 +293,10 @@ export default function GameCenter() {
 
                 const scoreFor = (team) => (isLive || isPost ? team?.score : "--");
 
+                const myPick = myPicks[event.id];
+                const pickedAway = myPick && myPick === away?.team?.shortDisplayName;
+                const pickedHome = myPick && myPick === home?.team?.shortDisplayName;
+
                 return (
 <motion.div
   key={event.id}
@@ -302,7 +329,7 @@ export default function GameCenter() {
   </div>
 )}
 
-                    {/* SCORES (🏈 next to team with possession) */}
+                    {/* SCORES (🏈 next to team with possession, ring on your pick) */}
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex flex-col items-center">
                         {away?.team?.logo && (
@@ -311,7 +338,7 @@ export default function GameCenter() {
                             alt={`${away?.team?.shortDisplayName || "Away"} logo`}
                             width={40}
                             height={40}
-                            className="rounded-full"
+                            className={`rounded-full ${pickedAway ? "ring-2 ring-emerald-500" : ""}`}
                             loading="lazy"
                           />
                         )}
@@ -325,6 +352,11 @@ export default function GameCenter() {
                           </p>
                           {isLive && teamHasPoss(away) && <span className="text-xs">🏈</span>}
                         </div>
+                        {pickedAway && (
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Your Pick
+                          </span>
+                        )}
                       </div>
 
                       <span className="text-lg font-bold text-zinc-500">@</span>
@@ -336,7 +368,7 @@ export default function GameCenter() {
                             alt={`${home?.team?.shortDisplayName || "Home"} logo`}
                             width={40}
                             height={40}
-                            className="rounded-full"
+                            className={`rounded-full ${pickedHome ? "ring-2 ring-emerald-500" : ""}`}
                             loading="lazy"
                           />
                         )}
@@ -350,6 +382,11 @@ export default function GameCenter() {
                           </p>
                           {isLive && teamHasPoss(home) && <span className="text-xs">🏈</span>}
                         </div>
+                        {pickedHome && (
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Your Pick
+                          </span>
+                        )}
                       </div>
                     </div>
 
