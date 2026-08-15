@@ -69,8 +69,12 @@ export default function HomePage() {
       }
       router.push("/dashboard");
     } catch (err) {
-      console.error("Google sign-in failed:", err);
-      alert("Google sign-in failed");
+      if (err.code === "auth/account-exists-with-different-credential") {
+        router.push(`/signin?linkEmail=${encodeURIComponent(err.customData?.email || "")}`);
+      } else {
+        console.error("Google sign-in failed:", err);
+        alert("Google sign-in failed");
+      }
     } finally {
       setLoading(false);
     }

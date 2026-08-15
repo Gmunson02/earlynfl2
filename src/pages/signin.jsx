@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithPopup,
+  linkWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -18,10 +19,17 @@ export default function SignIn() {
   const [message, setMessage] = useState(null);
   const router = useRouter();
 
+  // Set when a Google sign-in collides with an existing email/password account
+  const [linkEmail, setLinkEmail] = useState(null);
+  const [linkPassword, setLinkPassword] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState(null);
+
   // Let the landing page deep-link straight into sign-up mode
   useEffect(() => {
     if (router.query.mode === "signup") setIsSignUp(true);
-  }, [router.query.mode]);
+    if (router.query.linkEmail) setLinkEmail(String(router.query.linkEmail));
+  }, [router.query.mode, router.query.linkEmail]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,7 +70,27 @@ export default function SignIn() {
       }
       router.push("/dashboard");
     } catch (err) {
-      setError(err.message);
+      if (err.code === "auth/account-exists-with-different-credential") {
+        setLinkEmail(err.customData?.email || "");
+      } else {
+        setError(err.message);
+      }
+    }
+  };
+
+  const handleLinkAccount = async (e) => {
+    e.preventDefault();
+    setLinking(true);
+    setLinkError(null);
+    try {
+      // Prove ownership with the existing password, then attach Google to that same account
+      const cred = await signInWithEmailAndPassword(auth, linkEmail, linkPassword);
+      await linkWithPopup(cred.user, new GoogleAuthProvider());
+      router.push("/dashboard");
+    } catch (err) {
+      setLinkError(err.message);
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -84,6 +112,48 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
       <div className="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        {linkEmail ? (
+          <>
+            <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">
+              Connect your Google account
+            </h2>
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-1 mb-5">
+              You already have an account for <span className="font-semibold">{linkEmail}</span>.
+              Enter your password once to connect Google sign-in to it — after that you can use either.
+            </p>
+            <form onSubmit={handleLinkAccount} className="space-y-4">
+              <input
+                type="password"
+                placeholder="Password"
+                value={linkPassword}
+                onChange={(e) => setLinkPassword(e.target.value)}
+                required
+                className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
+              />
+              {linkError && <p className="text-red-500 text-sm text-center">{linkError}</p>}
+              <button
+                type="submit"
+                disabled={linking}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold disabled:opacity-50"
+              >
+                {linking ? "Connecting…" : "Connect Google"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLinkEmail(null);
+                  setLinkPassword("");
+                  setLinkError(null);
+                  router.replace("/signin");
+                }}
+                className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:underline"
+              >
+                Cancel
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
         <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">
           {isSignUp ? "Create your account" : "Welcome back"}
         </h2>
@@ -160,6 +230,8 @@ export default function SignIn() {
         >
           {isSignUp ? "Already have an account? Log in" : "New here? Create an account"}
         </button>
+          </>
+        )}
       </div>
     </div>
   );
