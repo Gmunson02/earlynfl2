@@ -27,7 +27,6 @@ export default function ScoresPage() {
   });
   const { loading, submissions, eventMap, winners } = state;
 
-  const [reloadTick, setReloadTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [myUid, setMyUid] = useState(null);
@@ -150,7 +149,7 @@ export default function ScoresPage() {
     };
 
     fetchData();
-  }, [year, week, season, reloadTick, authReady]);
+  }, [year, week, season, authReady]);
 
   const uniqueEventIDs = useMemo(() => {
     return Object.keys(eventMap).sort(
@@ -248,12 +247,15 @@ export default function ScoresPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setReloadTick((x) => x + 1)}
-              className="px-3 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-            >
-              Refresh
-            </button>
+            {myRowVisible && (
+              <button
+                onClick={scrollToMe}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                <LocateFixed size={16} />
+                Find Me
+              </button>
+            )}
             <div className="text-xs text-gray-500 dark:text-gray-400">
               {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
             </div>
@@ -370,16 +372,6 @@ export default function ScoresPage() {
           </tbody>
         </table>
       </div>
-
-      {myRowVisible && (
-        <button
-          onClick={scrollToMe}
-          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-indigo-600 text-white font-semibold shadow-lg hover:bg-indigo-700"
-        >
-          <LocateFixed size={18} />
-          Find Me
-        </button>
-      )}
     </div>
   );
 }
