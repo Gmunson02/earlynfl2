@@ -191,18 +191,15 @@ export default function ScoresPage() {
     const clock = live && g?.displayClock ? `${g.period ? `Q${g.period} ` : ""}${g.displayClock}` : "";
     return (
       <div className="flex flex-col items-center leading-tight">
-        {/* Status row: constant height; shows LIVE + clock or an empty spacer */}
-        <div className="mb-0.5 flex h-4 md:h-5 items-center justify-center gap-1">
+        {/* Status row: constant height; shows the live clock or an empty spacer */}
+        <div className="mb-0.5 flex h-4 md:h-5 items-center justify-center">
           <span
-            className={`text-[10px] md:text-[11px] font-semibold tracking-wide ${
-              live ? "text-rose-400" : "opacity-0"
+            className={`text-[10px] md:text-[11px] font-semibold font-mono tracking-wide ${
+              live && clock ? "text-rose-400" : "opacity-0"
             }`}
           >
-            LIVE
+            {clock || "-"}
           </span>
-          {live && clock && (
-            <span className="text-[9px] md:text-[10px] font-mono text-rose-300">{clock}</span>
-          )}
         </div>
 
         {/* Two compact rows: home and away with optional scores */}
