@@ -32,6 +32,19 @@ function AppInner({ Component, pageProps }) {
     }
   }, []);
 
+  // iOS PWAs often resume a frozen page from memory instead of reloading it
+  // when you reopen from the home screen, so nothing re-fetches. Force a
+  // real reload whenever the page comes back from that bfcache-style resume.
+  useEffect(() => {
+    const onPageShow = (event) => {
+      if (event.persisted) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
   // Firebase Auth persistence (browser only)
   useEffect(() => {
     setPersistence(auth, indexedDBLocalPersistence)
