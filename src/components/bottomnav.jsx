@@ -1,64 +1,29 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
-
-function useEspnWeek() {
-  const [state, setState] = useState({
-    seasonYear: null,
-    week: null,
-    seasonType: null, // 'pre' | 'reg' | 'post'
-  });
-
-  useEffect(() => {
-    let alive = true;
-    const typeMap = { 1: "pre", 2: "reg", 3: "post" };
-
-    (async () => {
-      try {
-        const res = await fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
-        );
-        const json = await res.json();
-        if (!alive) return;
-
-        setState({
-          seasonYear: json?.season?.year ?? null,
-          week: json?.week?.number ?? null,
-          seasonType: typeMap[json?.season?.type] ?? null,
-        });
-      } catch {
-        if (alive) setState({ seasonYear: null, week: null, seasonType: null });
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  return state;
-}
+import { useMemo } from "react";
+import useScheduleWeek from "../hooks/useScheduleWeek";
 
 export default function BottomNav() {
   const router = useRouter();
-  const { seasonYear, week, seasonType } = useEspnWeek();
+  const { seasonYear, seasonType, value: week, isBeforeKickoff } = useScheduleWeek("nfl-2026");
 
   const buildWeekPath = (y, s, w, leaf) =>
     y && s && w && leaf ? `/${y}/${s}/${w}/${leaf}` : null;
 
+  // Picks close once the week's first game kicks off — same rule enforced server-side
   const picksHref = useMemo(
-    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "picks"),
-    [seasonYear, seasonType, week]
+    () => (isBeforeKickoff ? buildWeekPath(seasonYear, seasonType, week, "picks") : null),
+    [seasonYear, seasonType, week, isBeforeKickoff]
   );
 
   const resultsHref = useMemo(
-    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "results"),
+    () => buildWeekPath(seasonYear, seasonType, week, "results"),
     [seasonYear, seasonType, week]
   );
 
   const matchupsHref = useMemo(
-    () => buildWeekPath(seasonYear, seasonType, week != null ? String(week) : null, "gamecenter"),
+    () => buildWeekPath(seasonYear, seasonType, week, "gamecenter"),
     [seasonYear, seasonType, week]
   );
 
@@ -118,7 +83,7 @@ export default function BottomNav() {
                 <span
                   aria-disabled
                   className="flex flex-col items-center opacity-50 cursor-not-allowed !no-underline [text-decoration:none!important] [text-decoration-skip-ink:none] [text-decoration-thickness:0]"
-                  title="Loading week…"
+                  title={item.label === "Picks" && !isBeforeKickoff ? "Picks are closed for this week" : "Loading week…"}
                 >
                   {content}
                 </span>

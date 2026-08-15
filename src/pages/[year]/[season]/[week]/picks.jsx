@@ -70,6 +70,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   const [submittedAt, setSubmittedAt] = useState(null);
   const [lastEditedAt, setLastEditedAt] = useState(null); // NEW
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   // NEW: controls whether we are still before the earliest game’s kickoff
   const [isBeforeKickoff, setIsBeforeKickoff] = useState(true);
@@ -143,6 +144,7 @@ export default function PicksPage({ year, week, season, matchups }) {
     if (!user) return;
 
     const name = userProfile?.displayName || "";
+    setSubmitError(null);
 
     try {
       const now = new Date().toISOString();
@@ -178,6 +180,11 @@ export default function PicksPage({ year, week, season, matchups }) {
       setShowConfirmation(true);
     } catch (err) {
       console.error("Submission failed", err);
+      setSubmitError(
+        err.code === "permission-denied"
+          ? "Picks are closed for this week — the first game has already started."
+          : "Something went wrong submitting your picks. Please try again."
+      );
     }
   };
 
@@ -191,13 +198,22 @@ export default function PicksPage({ year, week, season, matchups }) {
 
   const pickedGames = matchups.filter((game) => picks[game.eventId]);
   const isSubmitDisabled =
-    submitted || pickedGames.length !== matchups.length || tieBreaker.trim() === "";
+    submitted ||
+    !isBeforeKickoff ||
+    pickedGames.length !== matchups.length ||
+    tieBreaker.trim() === "";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-32 bg-white dark:bg-gray-900 min-h-screen">
       <h1 className="text-4xl font-extrabold text-center mb-2 text-gray-900 dark:text-white tracking-tight">
         🏈 Week {week} Picks
       </h1>
+
+      {!isBeforeKickoff && !submitted && (
+        <div className="mb-4 text-center text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
+          Picks are closed for this week — the first game has already started.
+        </div>
+      )}
 
       {userProfile?.displayName && (
         <div className="mb-4 text-center text-lg text-gray-800 dark:text-gray-200 font-medium">
@@ -359,6 +375,9 @@ export default function PicksPage({ year, week, season, matchups }) {
         >
           {submitted ? "Picks Submitted" : "Submit Picks"}
         </button>
+        {submitError && (
+          <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">{submitError}</p>
+        )}
       </div>
 
       {showConfirmation && (
