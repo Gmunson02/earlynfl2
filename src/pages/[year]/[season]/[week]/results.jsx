@@ -616,6 +616,8 @@ export default function ScoresPage() {
         const isDecided = g.status === "post";
         const isLiveGame = g.status === "in";
         const showScore = isDecided || isLiveGame;
+        // Tiebreaker is the combined score of the week's last-kickoff game
+        const isTiebreakerGame = selectedGameID === uniqueEventIDs[uniqueEventIDs.length - 1];
 
         return (
           <div
@@ -641,6 +643,11 @@ export default function ScoresPage() {
                       ? `${formatGameDate(g.date)} ${formatGameTimeET(g.date)}`
                       : ""}
                   </div>
+                  {isTiebreakerGame && (
+                    <div className="mt-1 inline-block text-[10px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                      Tiebreaker Game
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => setSelectedGameID(null)}
@@ -668,7 +675,14 @@ export default function ScoresPage() {
                       className={`flex items-center justify-between rounded-md px-3 py-2 ${rowColor}`}
                     >
                       <span className="font-semibold">{truncate14(entry.displayName)}</span>
-                      <span className="font-mono font-bold">{label}</span>
+                      <span className="flex items-center gap-3">
+                        {isTiebreakerGame && (
+                          <span className="text-xs opacity-70">
+                            TB: <span className="font-mono font-semibold">{entry.tieBreaker || "—"}</span>
+                          </span>
+                        )}
+                        <span className="font-mono font-bold">{label}</span>
+                      </span>
                     </div>
                   );
                 })}
