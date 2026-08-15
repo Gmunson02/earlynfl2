@@ -17,26 +17,23 @@ export default function HomePage() {
 
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        setHydrated(true); // show landing
+        if (!canceled) setHydrated(true); // show landing — nothing to redirect to
         return;
       }
 
-      try {
-        if (!user.isAnonymous) {
-          if (!canceled) router.replace("/dashboard");
-          return;
-        }
-
-        // Anonymous: check profile for displayName
-        const snap = await getDoc(doc(db, "users", user.uid));
-        const hasDisplayName = snap.exists() && !!snap.data()?.displayName;
-
-        if (!canceled) {
-          router.replace(hasDisplayName ? "/dashboard" : "/guest");
-        }
-      } finally {
-        if (!canceled) setHydrated(true);
+      if (!user.isAnonymous) {
+        if (!canceled) router.replace("/dashboard");
+        return; // stay blank until the redirect completes — no flash
       }
+
+      // Anonymous: check profile for displayName
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const hasDisplayName = snap.exists() && !!snap.data()?.displayName;
+
+      if (!canceled) {
+        router.replace(hasDisplayName ? "/dashboard" : "/guest");
+      }
+      // stay blank until the redirect completes — no flash
     });
 
     return () => {
