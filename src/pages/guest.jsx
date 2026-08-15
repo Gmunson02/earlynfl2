@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
-import { onAuthStateChanged, GoogleAuthProvider, linkWithPopup, signInWithPopup } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  linkWithPopup,
+  signInWithPopup,
+  signInWithCredential,
+} from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function GuestPage() {
@@ -46,9 +52,20 @@ export default function GuestPage() {
     setGoogleBusy(true);
     try {
       const provider = new GoogleAuthProvider();
-      const cred = user?.isAnonymous
-        ? await linkWithPopup(user, provider)
-        : await signInWithPopup(auth, provider);
+      let cred;
+      try {
+        cred = user?.isAnonymous
+          ? await linkWithPopup(user, provider)
+          : await signInWithPopup(auth, provider);
+      } catch (err) {
+        if (err.code === "auth/credential-already-in-use") {
+          // That Google account already belongs to a real account — sign into it instead
+          const existingCredential = GoogleAuthProvider.credentialFromError(err);
+          cred = await signInWithCredential(auth, existingCredential);
+        } else {
+          throw err;
+        }
+      }
 
       const ref = doc(db, "users", cred.user.uid);
       const snap = await getDoc(ref);
