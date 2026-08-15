@@ -575,6 +575,7 @@ export default function ScoresPage() {
                               ? "bg-green-200 dark:bg-green-300 text-gray-900"
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
                             const showScore = g?.status === "in" || g?.status === "post";
+                            const isLive = g?.status === "in";
 
                             return (
                               <div
@@ -593,7 +594,7 @@ export default function ScoresPage() {
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
-                                <div className="flex flex-col leading-tight font-mono">
+                                <div className="flex flex-col leading-tight font-mono flex-1">
                                   <span className="text-sm font-bold">
                                     {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
                                   </span>
@@ -601,6 +602,14 @@ export default function ScoresPage() {
                                     vs {opponent.abbr}{showScore && opponent.score != null ? ` ${opponent.score}` : ""}
                                   </span>
                                 </div>
+                                {isLive && (
+                                  <div className="flex flex-col items-end leading-tight font-mono shrink-0">
+                                    <span className="text-[10px] font-semibold text-rose-500">
+                                      {g?.period ? `Q${g.period}` : ""}
+                                    </span>
+                                    <span className="text-[10px] opacity-70">{g?.displayClock || ""}</span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
