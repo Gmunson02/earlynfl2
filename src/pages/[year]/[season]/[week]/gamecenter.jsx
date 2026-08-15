@@ -57,18 +57,26 @@ export default function GameCenter() {
   const timeoutRef = useRef(null); // adaptive timer
 
   // Include seconds
-  const timeFmt = useMemo(
+  // "8/15 - 4 PM ET" / "8/15 - 4:30 PM ET" — always Eastern, always this shape
+  const dateFmt = useMemo(
+    () => new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric", timeZone: "America/New_York" }),
+    []
+  );
+  const kickoffTimeFmt = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
-        weekday: "short",
         hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
         hour12: true,
+        timeZone: "America/New_York",
       }),
     []
   );
-
+  const formatKickoff = (dateStr) => {
+    const d = new Date(dateStr);
+    const time = kickoffTimeFmt.format(d).replace(":00 ", " ");
+    return `${dateFmt.format(d)} - ${time} ET`;
+  };
   const cacheKeyLS = useMemo(() => {
     if (!year || !week) return null;
     return `gc-cache-${year}-${season}-${week}`;
@@ -319,26 +327,21 @@ export default function GameCenter() {
       : "border-zinc-200 dark:border-zinc-700"
   }`}
 >
-{/* TOP: center LIVE when live, else status/kickoff */}
-{isLive ? (
-  <div className="flex justify-center mb-2">
-<span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-200 text-blue-900">
-  LIVE
-</span>
-  </div>
-) : (
-  <div className="flex justify-between items-start mb-2">
+{/* TOP: left = live/status/kickoff, right = network only */}
+<div className="flex justify-between items-start mb-2">
+  {isLive ? (
+    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-200 text-blue-900">
+      LIVE
+    </span>
+  ) : (
     <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-      {statusText}
+      {isPost ? statusText : formatKickoff(event.date)}
     </p>
-    {!isPost && (
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        {timeFmt.format(new Date(event.date))}
-        {broadcast ? ` • ${broadcast}` : ""}
-      </p>
-    )}
-  </div>
-)}
+  )}
+  {broadcast && (
+    <p className="text-xs text-zinc-500 dark:text-zinc-400">{broadcast}</p>
+  )}
+</div>
 
                     {/* SCORES (🏈 next to team with possession, ring on your pick) */}
                     <div className="flex justify-between items-center mb-2">
