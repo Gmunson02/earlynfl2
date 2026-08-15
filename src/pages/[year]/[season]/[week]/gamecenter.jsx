@@ -306,10 +306,22 @@ export default function GameCenter() {
 
                 // ESPN's situation object has no ready-made "3rd & 5" or
                 // "on CHI 40" text — build it from the raw down/distance,
-                // and use the last play's end spot for field position.
+                // and convert situation.yardLine (0-100, own-goal-line to
+                // opponent-goal-line) into "TEAM 40" text ourselves. Note:
+                // lastPlay.end.text looked like it'd do this for free, but
+                // it's only reliably populated for scoring plays.
                 const downText =
                   sit.down >= 1 && sit.down <= 4 ? `${DOWN_NAMES[sit.down]} & ${sit.distance}` : "";
-                const spotText = sit.lastPlay?.end?.text || "";
+                const spotText = (() => {
+                  if (sit.yardLine == null || !possId) return "";
+                  if (sit.yardLine === 50) return "50";
+                  const possIsAway = possId === String(away?.team?.id || "");
+                  const possAbbr = possIsAway ? away?.team?.abbreviation : home?.team?.abbreviation;
+                  const oppAbbr = possIsAway ? home?.team?.abbreviation : away?.team?.abbreviation;
+                  return sit.yardLine < 50
+                    ? `${possAbbr || ""} ${sit.yardLine}`.trim()
+                    : `${oppAbbr || ""} ${100 - sit.yardLine}`.trim();
+                })();
 
                 const myPick = myPicks[event.id];
                 const pickedAway = myPick && myPick === away?.team?.shortDisplayName;
