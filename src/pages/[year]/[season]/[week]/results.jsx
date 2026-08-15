@@ -31,7 +31,6 @@ export default function ScoresPage() {
   const [authReady, setAuthReady] = useState(false);
 
   const keyNew = `${year}-${season}-W${week}`;
-  const keyLegacy = `${year}-W${week}`;
 
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
