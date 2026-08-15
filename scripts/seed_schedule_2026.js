@@ -46,7 +46,9 @@ async function main() {
     weeks.push({
       id: `pre-${i}`,
       seasonType: "pre",
-      label: entry.label,
+      // Counting Hall of Fame Weekend as Preseason Week 1 (house convention,
+      // differs from ESPN's own labels which treat it separately)
+      label: `Preseason Week ${i + 1}`,
       value: entry.value,
       start: entry.startDate,
       end: entry.endDate,
