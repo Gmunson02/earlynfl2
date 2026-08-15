@@ -20,6 +20,7 @@ export default function GameDetailModal({
   downDistanceText,
   yardLineText,
   broadcast,
+  isRedZone,
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +98,13 @@ export default function GameDetailModal({
           <div className="p-4 space-y-5">
             {/* Live status: quarter/clock + who has the ball + down & distance */}
             {isLive && (
-              <div className="text-center text-sm font-semibold text-zinc-700 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 rounded-lg py-2">
+              <div
+                className={`text-center text-sm font-semibold rounded-lg py-2 ${
+                  isRedZone
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-800"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
+                }`}
+              >
                 Q{period} {clock}
                 {(downDistanceText || yardLineText) && (
                   <>
@@ -108,6 +115,7 @@ export default function GameDetailModal({
                     {yardLineText}
                   </>
                 )}
+                {isRedZone && <span className="ml-2">🔴 RED ZONE</span>}
               </div>
             )}
 

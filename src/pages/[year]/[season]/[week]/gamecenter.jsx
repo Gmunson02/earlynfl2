@@ -10,6 +10,7 @@ import { doc, getDoc } from "firebase/firestore";
 import GameDetailModal from "../../../../components/GameDetailModal";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
+const DOWN_NAMES = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
 
 // Adaptive intervals
 const LIVE_INTERVAL = 20_000; // 20s during live games
@@ -303,6 +304,13 @@ export default function GameCenter() {
 
                 const scoreFor = (team) => (isLive || isPost ? team?.score : "--");
 
+                // ESPN's situation object has no ready-made "3rd & 5" or
+                // "on CHI 40" text — build it from the raw down/distance,
+                // and use the last play's end spot for field position.
+                const downText =
+                  sit.down >= 1 && sit.down <= 4 ? `${DOWN_NAMES[sit.down]} & ${sit.distance}` : "";
+                const spotText = sit.lastPlay?.end?.text || "";
+
                 const myPick = myPicks[event.id];
                 const pickedAway = myPick && myPick === away?.team?.shortDisplayName;
                 const pickedHome = myPick && myPick === home?.team?.shortDisplayName;
@@ -321,8 +329,9 @@ export default function GameCenter() {
       period: status?.period,
       clock: status?.displayClock,
       possessionTeamId: possId,
-      downDistanceText: sit.shortDownDistanceText || sit.downDistanceText,
-      yardLineText: sit.yardLineText,
+      downDistanceText: downText,
+      yardLineText: spotText,
+      isRedZone: sit.isRedZone,
       broadcast,
     })
   }
@@ -436,8 +445,8 @@ export default function GameCenter() {
                         {/* Right: down & distance */}
                         <div className="flex justify-end font-medium">
                           <span>
-                            {(sit.shortDownDistanceText || sit.downDistanceText) ?? ""}
-                            {sit.yardLineText ? ` @ ${sit.yardLineText}` : ""}
+                            {downText}
+                            {spotText ? ` @ ${spotText}` : ""}
                           </span>
                         </div>
                       </div>
@@ -466,6 +475,7 @@ export default function GameCenter() {
           possessionTeamId={selectedGame.possessionTeamId}
           downDistanceText={selectedGame.downDistanceText}
           yardLineText={selectedGame.yardLineText}
+          isRedZone={selectedGame.isRedZone}
           broadcast={selectedGame.broadcast}
           onClose={() => setSelectedGame(null)}
         />
