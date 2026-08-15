@@ -7,6 +7,7 @@ import Image from "next/image";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import GameDetailModal from "../../../../components/GameDetailModal";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -31,6 +32,7 @@ export default function GameCenter() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isVisible, setIsVisible] = useState(true);
   const [myPicks, setMyPicks] = useState({});
+  const [selectedGame, setSelectedGame] = useState(null);
 
   // Load the signed-in user's picks for this week so we can highlight them
   useEffect(() => {
@@ -302,7 +304,16 @@ export default function GameCenter() {
   key={event.id}
   initial={{ opacity: 0, y: 10 }}
   animate={{ opacity: 1, y: 0 }}
-  className={`bg-white dark:bg-zinc-800/80 border rounded-xl shadow p-4 ${
+  onClick={() =>
+    setSelectedGame({
+      eventId: event.id,
+      awayTeam: { abbr: away?.team?.abbreviation || away?.team?.shortDisplayName, logo: away?.team?.logo },
+      homeTeam: { abbr: home?.team?.abbreviation || home?.team?.shortDisplayName, logo: home?.team?.logo },
+    })
+  }
+  role="button"
+  tabIndex={0}
+  className={`bg-white dark:bg-zinc-800/80 border rounded-xl shadow p-4 cursor-pointer hover:shadow-md transition-shadow ${
     isLive
       ? "border-blue-500 shadow-blue-500/20"
       : "border-zinc-200 dark:border-zinc-700"
@@ -433,6 +444,15 @@ export default function GameCenter() {
           </LazyMotion>
         )}
       </div>
+
+      {selectedGame && (
+        <GameDetailModal
+          eventId={selectedGame.eventId}
+          awayTeam={selectedGame.awayTeam}
+          homeTeam={selectedGame.homeTeam}
+          onClose={() => setSelectedGame(null)}
+        />
+      )}
     </div>
   );
 }
