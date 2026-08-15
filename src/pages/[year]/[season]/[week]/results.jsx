@@ -576,20 +576,37 @@ export default function ScoresPage() {
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
                             const showScore = g?.status === "in" || g?.status === "post";
 
-                            const highlightPick = "px-1.5 py-0.5 rounded-full ring-2 ring-indigo-500 bg-indigo-100 dark:bg-indigo-900 font-bold";
-
                             if (isPending) {
+                              const ringClass = "rounded-full ring-2 ring-indigo-500";
                               return (
                                 <div
                                   key={eventID}
                                   className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-mono ${bgColor}`}
                                 >
-                                  <span className={pickTeam && !pickedHome ? highlightPick : ""}>
-                                    {g?.away?.abbr}{showScore && g?.awayScore != null ? ` ${g.awayScore}` : ""}
+                                  <span className="flex items-center gap-1">
+                                    {g?.away?.logo && (
+                                      <Image
+                                        src={g.away.logo}
+                                        alt={g?.away?.abbr || "Away"}
+                                        width={22}
+                                        height={22}
+                                        className={pickTeam && !pickedHome ? ringClass : ""}
+                                      />
+                                    )}
+                                    {showScore && g?.awayScore != null ? g.awayScore : g?.away?.abbr}
                                   </span>
-                                  <span className="opacity-50">-</span>
-                                  <span className={pickTeam && pickedHome ? highlightPick : ""}>
-                                    {g?.home?.abbr}{showScore && g?.homeScore != null ? ` ${g.homeScore}` : ""}
+                                  <span className="opacity-50">v.</span>
+                                  <span className="flex items-center gap-1">
+                                    {showScore && g?.homeScore != null ? g.homeScore : g?.home?.abbr}
+                                    {g?.home?.logo && (
+                                      <Image
+                                        src={g.home.logo}
+                                        alt={g?.home?.abbr || "Home"}
+                                        width={22}
+                                        height={22}
+                                        className={pickTeam && pickedHome ? ringClass : ""}
+                                      />
+                                    )}
                                   </span>
                                 </div>
                               );
