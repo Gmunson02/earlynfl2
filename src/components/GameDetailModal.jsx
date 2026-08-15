@@ -84,7 +84,11 @@ export default function GameDetailModal({
         <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between">
           <h2 className="font-bold">
             {awayTeam.abbr} @ {homeTeam.abbr}
-            {broadcast && <span className="font-medium text-zinc-500"> ({broadcast})</span>}
+            {isLive && (
+              <span className="ml-2 text-red-500 font-semibold text-sm">
+                Q{period} {clock}
+              </span>
+            )}
           </h2>
           <button onClick={onClose} aria-label="Close">
             <X size={20} />
@@ -97,26 +101,16 @@ export default function GameDetailModal({
           <p className="p-6 text-center text-zinc-500">Couldn&apos;t load game details.</p>
         ) : (
           <div className="p-4 space-y-5">
-            {/* Live status: quarter/clock + who has the ball + down & distance */}
-            {isLive && (
-              <div
-                className={`text-center text-sm font-semibold rounded-lg py-2 ${
-                  isRedZone
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-300 dark:border-red-800"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
-                }`}
-              >
-                Q{period} {clock}
-                {(downDistanceText || yardLineText) && (
-                  <>
-                    {" | "}
-                    {possessingAbbr && `${possessingAbbr} `}
-                    {downDistanceText}
-                    {downDistanceText && yardLineText ? " on " : ""}
-                    {yardLineText}
-                  </>
+            {/* Who has the ball, down & distance, spot */}
+            {isLive && (downDistanceText || yardLineText) && (
+              <div className="text-center text-sm font-semibold text-zinc-700 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 rounded-lg py-2">
+                {isRedZone ? (
+                  <span className="text-red-500 font-bold">(REDZONE) </span>
+                ) : (
+                  possessingAbbr && `${possessingAbbr} `
                 )}
-                {isRedZone && <span className="ml-2">🔴 RED ZONE</span>}
+                {downDistanceText}
+                {yardLineText ? ` (${yardLineText})` : ""}
               </div>
             )}
 
