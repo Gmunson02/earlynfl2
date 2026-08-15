@@ -466,7 +466,11 @@ export default function ScoresPage() {
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
                             const isPending = g?.status !== "post";
-                            const bgColor = isPending ? "bg-slate-100 dark:bg-zinc-800" : correct ? "bg-green-200" : "bg-red-200";
+                            const bgColor = isPending
+                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
+                              : correct
+                              ? "bg-green-200 dark:bg-green-300 text-gray-900"
+                              : "bg-red-200 dark:bg-red-300 text-gray-900";
                             const showScore = g?.status === "in" || g?.status === "post";
 
                             return (
