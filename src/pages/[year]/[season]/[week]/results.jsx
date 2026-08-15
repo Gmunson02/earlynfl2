@@ -8,6 +8,7 @@ import Head from "next/head";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
+const MAX_SCENARIO_GAMES = 6;
 
 // Reusable widths so table scrolls instead of crushing cells
 const W_USER = "w-[168px] min-w-[168px]";     // ~14ch
@@ -195,11 +196,12 @@ export default function ScoresPage() {
 
   // Enumerates every possible outcome of the remaining games to find which
   // ones let this user finish 1st (or tie for it), then summarizes the
-  // outcomes that are required in every winning scenario. Capped at 14
-  // remaining games (16k combinations) to keep this cheap.
+  // outcomes that are required in every winning scenario. Capped at
+  // MAX_SCENARIO_GAMES remaining games to keep this cheap and to avoid
+  // showing noise early in the week when nothing is meaningfully decidable.
   const buildScenario = useCallback(
     (targetUid) => {
-      if (remainingEventIDs.length === 0 || remainingEventIDs.length > 14) return null;
+      if (remainingEventIDs.length === 0 || remainingEventIDs.length > MAX_SCENARIO_GAMES) return null;
 
       const picksByUid = new Map(
         submissions.map((s) => [s.uid, new Map(s.picks.map((p) => [p.eventID, p.teamName]))])
@@ -503,6 +505,14 @@ export default function ScoresPage() {
                     <tr className={rowBg}>
                       <td colSpan={3} className={`${borderClass} p-2`}>
                         {(() => {
+                          if (remainingEventIDs.length > MAX_SCENARIO_GAMES) {
+                            return (
+                              <div className="mb-2 rounded-md bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 px-2 py-1.5 text-xs">
+                                Scenarios unlock once {MAX_SCENARIO_GAMES} or fewer games remain this week.
+                              </div>
+                            );
+                          }
+
                           const scenario = buildScenario(entry.uid);
                           if (!scenario) return null;
 
