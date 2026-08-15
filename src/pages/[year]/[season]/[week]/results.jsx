@@ -269,7 +269,11 @@ export default function ScoresPage() {
       if (remainingEventIDs.length === 0 || remainingEventIDs.length > MAX_SCENARIO_GAMES) return null;
 
       const totalCombos = 2 ** remainingEventIDs.length;
-      const winningCombos = [];
+      // Per-mask outcome for every possible combo, not just the winning ones —
+      // needed to tell "this game could go either way and it's irrelevant"
+      // apart from "this game could go either way and it genuinely matters."
+      const isWin = new Array(totalCombos);
+      const requiresTB = new Array(totalCombos);
 
       for (let mask = 0; mask < totalCombos; mask++) {
         const assignment = {};
@@ -294,7 +298,7 @@ export default function ScoresPage() {
         const tied = [...winsByUid.entries()].filter(([, wins]) => wins === maxWins).map(([uid]) => uid);
 
         let winnerUids;
-        let requiresTiebreaker = false;
+        let needsTB = false;
         if (tied.length === 1) {
           winnerUids = tied;
         } else if (tiebreakerDecided) {
@@ -313,23 +317,51 @@ export default function ScoresPage() {
         } else {
           // Tiebreaker game hasn't happened yet — anyone tied is still alive
           winnerUids = tied;
-          requiresTiebreaker = true;
+          needsTB = true;
         }
 
-        if (winnerUids.includes(targetUid)) {
-          winningCombos.push({ assignment, requiresTiebreaker });
-        }
+        isWin[mask] = winnerUids.includes(targetUid);
+        requiresTB[mask] = needsTB;
       }
 
-      if (winningCombos.length === 0) return { status: "eliminated" };
-      if (winningCombos.length === totalCombos && winningCombos.every((c) => !c.requiresTiebreaker)) {
+      const winningMasks = [];
+      for (let mask = 0; mask < totalCombos; mask++) if (isWin[mask]) winningMasks.push(mask);
+
+      if (winningMasks.length === 0) return { status: "eliminated" };
+      if (winningMasks.length === totalCombos && winningMasks.every((m) => !requiresTB[m])) {
         return { status: "locked" };
       }
 
-      // A game is "necessary" if every winning combo needed the same team to win it
+      // A game is "relevant" if flipping it (holding everything else fixed)
+      // ever changes the win/lose outcome. If it's never decisive, drop it
+      // from the explanation entirely instead of treating it as ambiguity.
+      const relevantIdx = [];
+      remainingEventIDs.forEach((id, i) => {
+        const bit = 1 << i;
+        for (let mask = 0; mask < totalCombos; mask++) {
+          if ((mask & bit) === 0 && isWin[mask] !== isWin[mask | bit]) {
+            relevantIdx.push(i);
+            break;
+          }
+        }
+      });
+
+      const assignmentOf = (mask) => {
+        const a = {};
+        remainingEventIDs.forEach((id, i) => {
+          const g = eventMap[id];
+          a[id] = (mask >> i) & 1 ? g?.home?.short : g?.away?.short;
+        });
+        return a;
+      };
+
+      // Among relevant games, one that has the same required value in every
+      // winning combo is a hard requirement; the rest form genuine OR logic.
       const necessary = [];
-      for (const id of remainingEventIDs) {
-        const values = new Set(winningCombos.map((c) => c.assignment[id]));
+      const flexibleIdx = [];
+      for (const i of relevantIdx) {
+        const id = remainingEventIDs[i];
+        const values = new Set(winningMasks.map((m) => assignmentOf(m)[id]));
         if (values.size === 1) {
           const g = eventMap[id];
           const needShort = [...values][0];
@@ -338,16 +370,39 @@ export default function ScoresPage() {
             needAbbr: needHome ? g?.home?.abbr : g?.away?.abbr,
             overAbbr: needHome ? g?.away?.abbr : g?.home?.abbr,
           });
+        } else {
+          flexibleIdx.push(i);
         }
       }
 
-      const needsTiebreaker = winningCombos.every((c) => c.requiresTiebreaker);
+      const needsTiebreaker = winningMasks.every((m) => requiresTB[m]);
+
+      // Spell out the actual valid combinations for whatever's left flexible,
+      // restricted to just those games (necessary/irrelevant ones excluded)
+      const flexibleOptions =
+        flexibleIdx.length > 0
+          ? [
+              ...new Set(
+                winningMasks.map((m) => {
+                  const a = assignmentOf(m);
+                  return flexibleIdx
+                    .map((i) => {
+                      const id = remainingEventIDs[i];
+                      const g = eventMap[id];
+                      return a[id] === g?.home?.short ? g?.home?.abbr : g?.away?.abbr;
+                    })
+                    .join(" & ");
+                })
+              ),
+            ]
+          : [];
 
       return {
         status: "conditional",
         necessary,
         needsTiebreaker,
-        fullyDetermined: necessary.length === remainingEventIDs.length && !needsTiebreaker,
+        flexibleOptions,
+        fullyDetermined: flexibleIdx.length === 0 && !needsTiebreaker,
       };
     },
     [
@@ -644,13 +699,22 @@ export default function ScoresPage() {
                                 clauses.push("you must win the tiebreaker");
                               }
 
-                              if (clauses.length === 0) {
+                              const orText =
+                                scenario.flexibleOptions.length > 0
+                                  ? `at least one of: ${scenario.flexibleOptions
+                                      .map((opt) => `(${opt.split(" & ").join(" and ")})`)
+                                      .join(" or ")}`
+                                  : "";
+
+                              if (clauses.length === 0 && !orText) {
                                 message =
                                   "Path to 1st depends on how the remaining games go — several combinations could work in your favor.";
                               } else if (scenario.fullyDetermined) {
                                 message = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
+                              } else if (clauses.length === 0) {
+                                message = `Needs: ${orText} to finish 1st.`;
                               } else {
-                                message = `Needs: ${joinWithAnd(clauses)} — plus the right combination of the other remaining game(s).`;
+                                message = `Needs: ${joinWithAnd(clauses)} — plus ${orText}.`;
                               }
                             }
                           }
