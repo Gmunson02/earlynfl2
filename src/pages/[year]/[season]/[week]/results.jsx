@@ -576,24 +576,32 @@ export default function ScoresPage() {
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
                             const showScore = g?.status === "in" || g?.status === "post";
 
+                            const highlightPick = "px-1.5 py-0.5 rounded-full ring-2 ring-indigo-500 bg-indigo-100 dark:bg-indigo-900 font-bold";
+
+                            if (isPending) {
+                              return (
+                                <div
+                                  key={eventID}
+                                  className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-mono ${bgColor}`}
+                                >
+                                  <span className={pickTeam && !pickedHome ? highlightPick : ""}>
+                                    {g?.away?.abbr}{showScore && g?.awayScore != null ? ` ${g.awayScore}` : ""}
+                                  </span>
+                                  <span className="opacity-50">-</span>
+                                  <span className={pickTeam && pickedHome ? highlightPick : ""}>
+                                    {g?.home?.abbr}{showScore && g?.homeScore != null ? ` ${g.homeScore}` : ""}
+                                  </span>
+                                </div>
+                              );
+                            }
+
                             return (
                               <div
                                 key={eventID}
                                 className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <div className="relative shrink-0">
-                                    <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
-                                    {isPending && (
-                                      <span
-                                        className="absolute -top-1 -right-1 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-600 text-white text-[9px] leading-none ring-1 ring-white dark:ring-zinc-900"
-                                        aria-label="Your pick"
-                                        title="Your pick"
-                                      >
-                                        ✓
-                                      </span>
-                                    )}
-                                  </div>
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
