@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { db } from "../../../../lib/firebase";
+import { auth, db } from "../../../../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
@@ -27,12 +28,20 @@ export default function ScoresPage() {
 
   const [reloadTick, setReloadTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const keyNew = `${year}-${season}-W${week}`;
   const keyLegacy = `${year}-W${week}`;
 
+  // Wait for the signed-in session to restore before querying Firestore,
+  // otherwise a fresh page load can fire the query while logged out.
   useEffect(() => {
-    if (!year || !week || !season) return;
+    const unsub = onAuthStateChanged(auth, () => setAuthReady(true));
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!year || !week || !season || !authReady) return;
 
     const fetchData = async () => {
       setState((s) => ({ ...s, loading: true }));
@@ -133,7 +142,7 @@ export default function ScoresPage() {
     };
 
     fetchData();
-  }, [year, week, season, reloadTick]);
+  }, [year, week, season, reloadTick, authReady]);
 
   const uniqueEventIDs = useMemo(() => {
     return Object.keys(eventMap).sort(
