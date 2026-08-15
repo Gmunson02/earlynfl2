@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
-import { LocateFixed, ChevronLeft, ChevronRight } from "lucide-react";
+import { LocateFixed, ChevronDown, ChevronRight } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -31,8 +31,16 @@ export default function ScoresPage() {
   const [authReady, setAuthReady] = useState(false);
   const [myUid, setMyUid] = useState(null);
 
-  // Portrait-only single-game view: index into uniqueEventIDs
-  const [gameIndex, setGameIndex] = useState(0);
+  // Portrait-only: which users' pick grids are expanded
+  const [expandedUsers, setExpandedUsers] = useState(new Set());
+  const toggleExpanded = useCallback((uid) => {
+    setExpandedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }, []);
 
   const rowRefs = useRef(new Map());
   const pollTimer = useRef(null);
@@ -179,12 +187,6 @@ export default function ScoresPage() {
       (a, b) => new Date(eventMap[a].date) - new Date(eventMap[b].date)
     );
   }, [eventMap]);
-
-  // Clamp portrait game index whenever the event list changes (e.g. first load)
-  useEffect(() => {
-    if (uniqueEventIDs.length === 0) return;
-    setGameIndex((i) => Math.min(i, uniqueEventIDs.length - 1));
-  }, [uniqueEventIDs]);
 
   const totals = useMemo(() => {
     const total = uniqueEventIDs.length;
@@ -406,102 +408,98 @@ export default function ScoresPage() {
         </table>
       </div>
 
-      {/* Single-game view (portrait / narrow screens) */}
-      {uniqueEventIDs.length > 0 && (
-        <div className="sm:hidden max-w-8xl mx-auto pb-28">
-          {(() => {
-            const eventID = uniqueEventIDs[gameIndex];
-            const g = eventMap[eventID];
-            const showScore = g?.status === "in" || g?.status === "post";
-            const goPrev = () => setGameIndex((i) => Math.max(0, i - 1));
-            const goNext = () => setGameIndex((i) => Math.min(uniqueEventIDs.length - 1, i + 1));
+      {/* Expandable per-user view (portrait / narrow screens) */}
+      <div className="sm:hidden max-w-8xl mx-auto pb-28">
+        <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
+          <thead className="bg-slate-800 text-white shadow-sm">
+            <tr>
+              <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}>
+                User
+              </th>
+              <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
+              <th className={`w-[72px] px-2 py-1 text-center font-bold ${borderClass}`}>TB</th>
+            </tr>
+          </thead>
 
-            return (
-              <>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <button
-                    onClick={goPrev}
-                    disabled={gameIndex === 0}
-                    className="p-2 rounded-md bg-slate-800 text-white disabled:opacity-30"
-                    aria-label="Previous game"
+          <tbody>
+            {submissions.map((entry, index) => {
+              const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+              const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+              const isOpen = expandedUsers.has(entry.uid);
+
+              return (
+                <Fragment key={entry.uid}>
+                  <tr
+                    className={`${rowBg} cursor-pointer`}
+                    onClick={() => toggleExpanded(entry.uid)}
                   >
-                    <ChevronLeft size={20} />
-                  </button>
+                    <td
+                      className={`py-1 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                      style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}
+                      title={entry.displayName || ""}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        {truncate14(entry.displayName)}
+                      </span>
+                    </td>
+                    <td className={`w-[56px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
+                      {entry.winnerCount}
+                    </td>
+                    <td className={`w-[72px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {entry.tieBreaker || "—"}
+                      </span>
+                    </td>
+                  </tr>
 
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Game {gameIndex + 1} of {uniqueEventIDs.length}
-                    </div>
-                    <div className="font-bold text-sm">
-                      {g?.away?.short || g?.away?.abbr} @ {g?.home?.short || g?.home?.abbr}
-                    </div>
-                  </div>
+                  {isOpen && (
+                    <tr className={rowBg}>
+                      <td colSpan={3} className={`${borderClass} p-2`}>
+                        <div className="grid grid-cols-2 gap-2">
+                          {uniqueEventIDs.map((eventID) => {
+                            const g = eventMap[eventID];
+                            const pickTeam = picksMap.get(eventID);
+                            const correct = winners[eventID] === pickTeam;
+                            const pickedHome = g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
+                            const team = pickedHome
+                              ? { logo: g?.home?.logo, label: g?.home?.abbr }
+                              : { logo: g?.away?.logo, label: g?.away?.abbr };
+                            const isPending = g?.status !== "post";
+                            const bgColor = isPending ? "bg-slate-100 dark:bg-zinc-800" : correct ? "bg-green-200" : "bg-red-200";
+                            const showScore = g?.status === "in" || g?.status === "post";
 
-                  <button
-                    onClick={goNext}
-                    disabled={gameIndex === uniqueEventIDs.length - 1}
-                    className="p-2 rounded-md bg-slate-800 text-white disabled:opacity-30"
-                    aria-label="Next game"
-                  >
-                    <ChevronRight size={20} />
-                  </button>
-                </div>
-
-                <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
-                  <thead className="bg-slate-800 text-white shadow-sm">
-                    <tr>
-                      <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}>
-                        User
-                      </th>
-                      <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
-                      <th className={`px-1 py-1 text-center font-bold ${borderClass}`}>
-                        <HeaderCompact g={g} showScores={showScore} />
-                      </th>
+                            return (
+                              <div
+                                key={eventID}
+                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${bgColor}`}
+                              >
+                                {pickTeam && team?.logo ? (
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
+                                ) : (
+                                  <span className="text-gray-400 w-7 text-center">–</span>
+                                )}
+                                <div className="flex flex-col leading-tight text-xs font-mono">
+                                  <span className={g?.away?.abbr === team?.label ? "font-bold" : ""}>
+                                    {g?.away?.abbr}{showScore && g?.awayScore != null ? ` ${g.awayScore}` : ""}
+                                  </span>
+                                  <span className={g?.home?.abbr === team?.label ? "font-bold" : ""}>
+                                    {g?.home?.abbr}{showScore && g?.homeScore != null ? ` ${g.homeScore}` : ""}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-
-                  <tbody>
-                    {submissions.map((entry, index) => {
-                      const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
-                      const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
-                      const pickTeam = picksMap.get(eventID);
-                      const correct = winners[eventID] === pickTeam;
-                      const pickedHome = g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
-                      const team = pickedHome
-                        ? { logo: g?.home?.logo, label: g?.home?.abbr }
-                        : { logo: g?.away?.logo, label: g?.away?.abbr };
-                      const isPending = g?.status !== "post";
-                      const bgColor = isPending ? "" : correct ? "bg-green-200" : "bg-red-200";
-
-                      return (
-                        <tr key={entry.uid} className={rowBg}>
-                          <td
-                            className={`py-1 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
-                            style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}
-                            title={entry.displayName || ""}
-                          >
-                            {truncate14(entry.displayName)}
-                          </td>
-                          <td className={`w-[56px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
-                            {entry.winnerCount}
-                          </td>
-                          <td className={`text-center px-1 py-1 ${borderClass} ${bgColor}`}>
-                            {pickTeam && team?.logo ? (
-                              <Image src={team.logo} alt={team?.label || "Team"} width={50} height={50} className="mx-auto" />
-                            ) : (
-                              <span className="text-gray-400">–</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </>
-            );
-          })()}
-        </div>
-      )}
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
