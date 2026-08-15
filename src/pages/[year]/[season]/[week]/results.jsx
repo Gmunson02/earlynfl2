@@ -273,6 +273,14 @@ export default function ScoresPage() {
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
 
+  const formatGameDate = (iso) =>
+    new Date(iso)
+      .toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "America/New_York" })
+      .toUpperCase()
+      .replace(",", "");
+  const formatGameTimeET = (iso) =>
+    `${new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })} ET`;
+
   // ---------- FIX: reserve a status row height in every header cell ----------
   const HeaderCompact = ({ g, showScores }) => {
     const live = g?.status === "in";
@@ -572,6 +580,12 @@ export default function ScoresPage() {
                                       {g?.period ? `Q${g.period}` : ""}
                                     </span>
                                     <span className="text-[10px] opacity-70">{g?.displayClock || ""}</span>
+                                  </div>
+                                )}
+                                {isPending && !isLive && g?.date && (
+                                  <div className="flex flex-col items-end leading-tight font-mono shrink-0">
+                                    <span className="text-[10px] font-semibold">{formatGameDate(g.date)}</span>
+                                    <span className="text-[10px] opacity-70">{formatGameTimeET(g.date)}</span>
                                   </div>
                                 )}
                               </div>
