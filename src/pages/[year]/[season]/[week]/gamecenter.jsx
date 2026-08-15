@@ -323,6 +323,7 @@ export default function GameCenter() {
       possessionTeamId: possId,
       downDistanceText: sit.shortDownDistanceText || sit.downDistanceText,
       yardLineText: sit.yardLineText,
+      broadcast,
     })
   }
   role="button"
@@ -344,7 +345,7 @@ export default function GameCenter() {
       {isPost ? statusText : formatKickoff(event.date)}
     </p>
   )}
-  {broadcast && (
+  {broadcast && !isPost && (
     <p className="text-xs text-zinc-500 dark:text-zinc-400">{broadcast}</p>
   )}
 </div>
@@ -465,6 +466,7 @@ export default function GameCenter() {
           possessionTeamId={selectedGame.possessionTeamId}
           downDistanceText={selectedGame.downDistanceText}
           yardLineText={selectedGame.yardLineText}
+          broadcast={selectedGame.broadcast}
           onClose={() => setSelectedGame(null)}
         />
       )}

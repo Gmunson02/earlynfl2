@@ -19,6 +19,7 @@ export default function GameDetailModal({
   possessionTeamId,
   downDistanceText,
   yardLineText,
+  broadcast,
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,13 @@ export default function GameDetailModal({
 
   const scoringPlays = Array.isArray(summary?.scoringPlays) ? summary.scoringPlays : [];
 
+  const possessingAbbr =
+    possessionTeamId && String(possessionTeamId) === String(awayTeam.id)
+      ? awayTeam.abbr
+      : possessionTeamId && String(possessionTeamId) === String(homeTeam.id)
+      ? homeTeam.abbr
+      : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -74,11 +82,7 @@ export default function GameDetailModal({
         <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between">
           <h2 className="font-bold">
             {awayTeam.abbr} @ {homeTeam.abbr}
-            {isLive && (
-              <span className="ml-2 font-medium text-sm text-rose-500">
-                Q{period} {clock}
-              </span>
-            )}
+            {broadcast && <span className="font-medium text-zinc-500"> ({broadcast})</span>}
           </h2>
           <button onClick={onClose} aria-label="Close">
             <X size={20} />
@@ -91,12 +95,19 @@ export default function GameDetailModal({
           <p className="p-6 text-center text-zinc-500">Couldn&apos;t load game details.</p>
         ) : (
           <div className="p-4 space-y-5">
-            {/* Ball spot: down & distance, yard line */}
-            {isLive && (downDistanceText || yardLineText) && (
+            {/* Live status: quarter/clock + who has the ball + down & distance */}
+            {isLive && (
               <div className="text-center text-sm font-semibold text-zinc-700 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 rounded-lg py-2">
-                {downDistanceText}
-                {downDistanceText && yardLineText ? " at " : ""}
-                {yardLineText}
+                Q{period} {clock}
+                {(downDistanceText || yardLineText) && (
+                  <>
+                    {" | "}
+                    {possessingAbbr && `${possessingAbbr} `}
+                    {downDistanceText}
+                    {downDistanceText && yardLineText ? " on " : ""}
+                    {yardLineText}
+                  </>
+                )}
               </div>
             )}
 
