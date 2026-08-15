@@ -582,7 +582,18 @@ export default function ScoresPage() {
                                 className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
+                                  <div className="relative shrink-0">
+                                    <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
+                                    {isPending && (
+                                      <span
+                                        className="absolute -top-1 -right-1 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-600 text-white text-[9px] leading-none ring-1 ring-white dark:ring-zinc-900"
+                                        aria-label="Your pick"
+                                        title="Your pick"
+                                      >
+                                        ✓
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
