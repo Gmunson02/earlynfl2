@@ -577,36 +577,18 @@ export default function ScoresPage() {
                             const showScore = g?.status === "in" || g?.status === "post";
 
                             if (isPending) {
-                              const ringClass = "rounded-full ring-2 ring-indigo-500";
+                              const highlightPick = "px-1.5 py-0.5 rounded-full ring-2 ring-indigo-500 font-bold";
                               return (
                                 <div
                                   key={eventID}
-                                  className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-mono ${bgColor}`}
+                                  className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 min-h-11 text-sm font-mono ${bgColor}`}
                                 >
-                                  <span className="flex items-center gap-1">
-                                    {g?.away?.logo && (
-                                      <Image
-                                        src={g.away.logo}
-                                        alt={g?.away?.abbr || "Away"}
-                                        width={22}
-                                        height={22}
-                                        className={pickTeam && !pickedHome ? ringClass : ""}
-                                      />
-                                    )}
-                                    {showScore && g?.awayScore != null ? g.awayScore : g?.away?.abbr}
+                                  <span className={pickTeam && !pickedHome ? highlightPick : ""}>
+                                    {g?.away?.abbr} {showScore && g?.awayScore != null ? g.awayScore : ""}
                                   </span>
                                   <span className="opacity-50">v.</span>
-                                  <span className="flex items-center gap-1">
-                                    {showScore && g?.homeScore != null ? g.homeScore : g?.home?.abbr}
-                                    {g?.home?.logo && (
-                                      <Image
-                                        src={g.home.logo}
-                                        alt={g?.home?.abbr || "Home"}
-                                        width={22}
-                                        height={22}
-                                        className={pickTeam && pickedHome ? ringClass : ""}
-                                      />
-                                    )}
+                                  <span className={pickTeam && pickedHome ? highlightPick : ""}>
+                                    {showScore && g?.homeScore != null ? g.homeScore : ""} {g?.home?.abbr}
                                   </span>
                                 </div>
                               );
@@ -615,7 +597,7 @@ export default function ScoresPage() {
                             return (
                               <div
                                 key={eventID}
-                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${bgColor}`}
+                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
                                   <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
