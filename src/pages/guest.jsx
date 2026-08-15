@@ -7,6 +7,7 @@ import {
   linkWithPopup,
   signInWithPopup,
   signInWithCredential,
+  signOut,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -86,9 +87,26 @@ export default function GuestPage() {
     }
   };
 
+  const handleBack = async () => {
+    // Fully sign out of the anonymous session — otherwise the landing page
+    // keeps redirecting straight back here on every future visit.
+    try {
+      await signOut(auth);
+    } finally {
+      router.push("/");
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4 py-8">
       <div className="w-full max-w-md space-y-4">
+        <button
+          onClick={handleBack}
+          className="text-sm text-gray-600 dark:text-gray-300 hover:underline"
+        >
+          ← Back
+        </button>
+
         <div className="bg-white dark:bg-gray-800 text-black dark:text-white p-5 rounded-xl shadow">
           <h2 className="font-bold text-center mb-1">For the best experience...</h2>
           <p className="text-sm text-center text-gray-600 dark:text-gray-300 mb-3">
