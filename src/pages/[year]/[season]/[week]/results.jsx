@@ -188,6 +188,77 @@ export default function ScoresPage() {
     );
   }, [eventMap]);
 
+  const remainingEventIDs = useMemo(
+    () => uniqueEventIDs.filter((id) => eventMap[id]?.status !== "post"),
+    [uniqueEventIDs, eventMap]
+  );
+
+  // Enumerates every possible outcome of the remaining games to find which
+  // ones let this user finish 1st (or tie for it), then summarizes the
+  // outcomes that are required in every winning scenario. Capped at 14
+  // remaining games (16k combinations) to keep this cheap.
+  const buildScenario = useCallback(
+    (targetUid) => {
+      if (remainingEventIDs.length === 0 || remainingEventIDs.length > 14) return null;
+
+      const picksByUid = new Map(
+        submissions.map((s) => [s.uid, new Map(s.picks.map((p) => [p.eventID, p.teamName]))])
+      );
+      const decidedByUid = new Map(submissions.map((s) => [s.uid, s.winnerCount]));
+
+      const totalCombos = 2 ** remainingEventIDs.length;
+      const winningCombos = [];
+
+      for (let mask = 0; mask < totalCombos; mask++) {
+        const assignment = {};
+        remainingEventIDs.forEach((id, i) => {
+          const g = eventMap[id];
+          const homeWins = (mask >> i) & 1;
+          assignment[id] = homeWins ? g?.home?.short : g?.away?.short;
+        });
+
+        let maxWins = -Infinity;
+        let targetWins = 0;
+        for (const s of submissions) {
+          const picks = picksByUid.get(s.uid);
+          let wins = decidedByUid.get(s.uid) || 0;
+          for (const id of remainingEventIDs) {
+            if (picks.get(id) === assignment[id]) wins++;
+          }
+          if (wins > maxWins) maxWins = wins;
+          if (s.uid === targetUid) targetWins = wins;
+        }
+
+        if (targetWins >= maxWins) winningCombos.push(assignment);
+      }
+
+      if (winningCombos.length === 0) return { status: "eliminated" };
+      if (winningCombos.length === totalCombos) return { status: "locked" };
+
+      // A game is "necessary" if every winning combo needed the same team to win it
+      const necessary = [];
+      for (const id of remainingEventIDs) {
+        const values = new Set(winningCombos.map((c) => c[id]));
+        if (values.size === 1) {
+          const g = eventMap[id];
+          const needShort = [...values][0];
+          const needHome = needShort === g?.home?.short;
+          necessary.push({
+            needAbbr: needHome ? g?.home?.abbr : g?.away?.abbr,
+            overAbbr: needHome ? g?.away?.abbr : g?.home?.abbr,
+          });
+        }
+      }
+
+      return {
+        status: "conditional",
+        necessary,
+        fullyDetermined: necessary.length === remainingEventIDs.length,
+      };
+    },
+    [remainingEventIDs, submissions, eventMap]
+  );
+
   const totals = useMemo(() => {
     const total = uniqueEventIDs.length;
     let post = 0, live = 0, pre = 0;
@@ -456,6 +527,34 @@ export default function ScoresPage() {
                   {isOpen && (
                     <tr className={rowBg}>
                       <td colSpan={3} className={`${borderClass} p-2`}>
+                        {(() => {
+                          const scenario = buildScenario(entry.uid);
+                          if (!scenario) return null;
+
+                          let message;
+                          if (scenario.status === "locked") {
+                            message = "🔒 Locked in for 1st place this week!";
+                          } else if (scenario.status === "eliminated") {
+                            message = "Eliminated from 1st place this week.";
+                          } else {
+                            const parts = scenario.necessary.map((n) => `${n.needAbbr} beats ${n.overAbbr}`);
+                            if (parts.length === 0) {
+                              message =
+                                "Path to 1st depends on how the remaining games go — several combinations could work in your favor.";
+                            } else if (scenario.fullyDetermined) {
+                              message = `Needs: ${parts.join(", ")} to finish 1st.`;
+                            } else {
+                              message = `Needs: ${parts.join(", ")} — plus the right combination of the other remaining game(s).`;
+                            }
+                          }
+
+                          return (
+                            <div className="mb-2 rounded-md bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100 px-2 py-1.5 text-xs">
+                              {message}
+                            </div>
+                          );
+                        })()}
+
                         <div className="grid grid-cols-2 gap-2">
                           {uniqueEventIDs.map((eventID) => {
                             const g = eventMap[eventID];
@@ -465,6 +564,10 @@ export default function ScoresPage() {
                             const team = pickedHome
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
+                            const opponent = pickedHome
+                              ? { abbr: g?.away?.abbr, score: g?.awayScore }
+                              : { abbr: g?.home?.abbr, score: g?.homeScore };
+                            const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
                             const isPending = g?.status !== "post";
                             const bgColor = isPending
                               ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
@@ -483,12 +586,12 @@ export default function ScoresPage() {
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
-                                <div className="flex flex-col leading-tight text-xs font-mono">
-                                  <span className={g?.away?.abbr === team?.label ? "font-bold" : ""}>
-                                    {g?.away?.abbr}{showScore && g?.awayScore != null ? ` ${g.awayScore}` : ""}
+                                <div className="flex flex-col leading-tight font-mono">
+                                  <span className="text-sm font-bold">
+                                    {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
                                   </span>
-                                  <span className={g?.home?.abbr === team?.label ? "font-bold" : ""}>
-                                    {g?.home?.abbr}{showScore && g?.homeScore != null ? ` ${g.homeScore}` : ""}
+                                  <span className="text-[10px] opacity-70">
+                                    vs {opponent.abbr}{showScore && opponent.score != null ? ` ${opponent.score}` : ""}
                                   </span>
                                 </div>
                               </div>
