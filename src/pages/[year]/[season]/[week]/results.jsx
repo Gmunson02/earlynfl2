@@ -570,7 +570,7 @@ export default function ScoresPage() {
                             const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
                             const isPending = g?.status !== "post";
                             const bgColor = isPending
-                              ? "bg-indigo-50 dark:bg-indigo-950 text-gray-900 dark:text-white border border-indigo-200 dark:border-indigo-800"
+                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
                               : correct
                               ? "bg-green-200 dark:bg-green-300 text-gray-900"
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
@@ -582,16 +582,18 @@ export default function ScoresPage() {
                                 className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
+                                  <div className="flex flex-col items-center shrink-0">
+                                    <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
+                                    {isPending && (
+                                      <span className="text-[8px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400 leading-none mt-0.5">
+                                        Pick
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
                                 <div className="flex flex-col leading-tight font-mono">
-                                  {isPending && (
-                                    <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-                                      Pick
-                                    </span>
-                                  )}
                                   <span className="text-sm font-bold">
                                     {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
                                   </span>
