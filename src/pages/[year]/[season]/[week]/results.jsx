@@ -32,8 +32,12 @@ export default function ScoresPage() {
   const [myUid, setMyUid] = useState(null);
 
   const rowRefs = useRef(new Map());
+  const pollTimer = useRef(null);
+  const isFirstLoad = useRef(true);
 
   const keyNew = `${year}-${season}-W${week}`;
+
+  const REFRESH_INTERVAL = 30_000;
 
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
@@ -48,17 +52,24 @@ export default function ScoresPage() {
   useEffect(() => {
     if (!year || !week || !season || !authReady) return;
 
+    let cancelled = false;
+    isFirstLoad.current = true;
+
     const fetchData = async () => {
-      setState((s) => ({ ...s, loading: true }));
+      // Only show the loading state on the very first load — background
+      // auto-refreshes shouldn't flash the whole page back to "Loading...".
+      if (isFirstLoad.current) setState((s) => ({ ...s, loading: true }));
 
       const seasontype = TYPE_MAP[season] ?? 2;
-      const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
+      const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
       const [weeksSnap, usersSnap, espnData] = await Promise.all([
         getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
         getDocs(collection(db, "users")),
         fetch(apiUrl).then((r) => r.json()),
       ]);
+
+      if (cancelled) return;
 
       const usersMap = {};
       usersSnap.forEach((d) => {
@@ -146,9 +157,22 @@ export default function ScoresPage() {
         winners: winnerMap,
       });
       setLastUpdated(new Date());
+      isFirstLoad.current = false;
+
+      // Keep polling every 30s while any game hasn't finished; stop once the
+      // whole week is final so we're not refreshing forever for no reason.
+      const anyUnfinished = Object.values(tempMap).some((g) => g.status !== "post");
+      if (anyUnfinished && !cancelled) {
+        pollTimer.current = setTimeout(fetchData, REFRESH_INTERVAL);
+      }
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(pollTimer.current);
+    };
   }, [year, week, season, authReady]);
 
   const uniqueEventIDs = useMemo(() => {

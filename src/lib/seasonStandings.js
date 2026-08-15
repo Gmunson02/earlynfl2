@@ -6,13 +6,13 @@ import { collection, doc, getDoc, getDocs, query, where } from "firebase/firesto
 // fragmented guest accounts (same name, different uids) count as one entry.
 export async function loadSeasonStandingsByName(year, season) {
   const seasonId = `${year}-${season}`;
-  const seasonSnap = await getDoc(doc(db, "season_leaderboard", seasonId));
+  const [seasonSnap, weeklySnap] = await Promise.all([
+    getDoc(doc(db, "season_leaderboard", seasonId)),
+    getDocs(query(collection(db, "weekly_results"), where("year", "==", year), where("season", "==", season))),
+  ]);
   if (!seasonSnap.exists()) return [];
   const players = seasonSnap.data().players || {};
 
-  const weeklySnap = await getDocs(
-    query(collection(db, "weekly_results"), where("year", "==", year), where("season", "==", season))
-  );
   const titleWins = {};
   weeklySnap.forEach((d) => {
     (d.data().winners || []).forEach((w) => {

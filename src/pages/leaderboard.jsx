@@ -21,21 +21,22 @@ export default function LeaderboardPage() {
     const load = async () => {
       setLoading(true);
 
-      const sSnap = await getDoc(doc(db, "season_leaderboard", `${CURRENT_YEAR}-${CURRENT_SEASON}`));
-      const season = sSnap.exists() ? { id: sSnap.id, ...sSnap.data() } : null;
+      const [sSnap, wSnap, lastSeason] = await Promise.all([
+        getDoc(doc(db, "season_leaderboard", `${CURRENT_YEAR}-${CURRENT_SEASON}`)),
+        getDocs(
+          query(
+            collection(db, "weekly_results"),
+            where("year", "==", CURRENT_YEAR),
+            where("season", "==", CURRENT_SEASON)
+          )
+        ),
+        loadSeasonStandingsByName(LAST_YEAR, LAST_SEASON),
+      ]);
 
-      const wSnap = await getDocs(
-        query(
-          collection(db, "weekly_results"),
-          where("year", "==", CURRENT_YEAR),
-          where("season", "==", CURRENT_SEASON)
-        )
-      );
+      const season = sSnap.exists() ? { id: sSnap.id, ...sSnap.data() } : null;
       const weeklies = [];
       wSnap.forEach((d) => weeklies.push({ id: d.id, ...d.data() }));
       weeklies.sort((a, b) => (b.week || 0) - (a.week || 0));
-
-      const lastSeason = await loadSeasonStandingsByName(LAST_YEAR, LAST_SEASON);
 
       setSeasonDoc(season);
       setWeeklyDocs(weeklies);
@@ -243,8 +244,9 @@ export default function LeaderboardPage() {
                   <tr>
                     <th className="text-left px-3 py-2 w-[48px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 w-[90px]">Total Wins</th>
-                    <th className="text-right px-3 py-2 w-[80px]">Points</th>
+                    <th className="text-right px-3 py-2 sm:hidden w-[110px]">Wins • Pts</th>
+                    <th className="hidden sm:table-cell text-right px-3 py-2 w-[90px]">Total Wins</th>
+                    <th className="hidden sm:table-cell text-right px-3 py-2 w-[80px]">Points</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -255,8 +257,11 @@ export default function LeaderboardPage() {
                     >
                       <td className="px-3 py-2 font-medium">{r.rank}</td>
                       <td className="px-3 py-2 font-semibold">{r.name}</td>
-                      <td className="px-3 py-2 text-right">{r.wins}</td>
-                      <td className="px-3 py-2 text-right">{r.points}</td>
+                      <td className="sm:hidden px-3 py-2 text-right">
+                        {r.wins} • {r.points}
+                      </td>
+                      <td className="hidden sm:table-cell px-3 py-2 text-right">{r.wins}</td>
+                      <td className="hidden sm:table-cell px-3 py-2 text-right">{r.points}</td>
                     </tr>
                   ))}
                 </tbody>
