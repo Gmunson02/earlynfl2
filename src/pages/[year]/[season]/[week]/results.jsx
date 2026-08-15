@@ -5,7 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
-import { LocateFixed, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -29,7 +29,6 @@ export default function ScoresPage() {
 
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [myUid, setMyUid] = useState(null);
 
   // Portrait-only: which users' pick grids are expanded
   const [expandedUsers, setExpandedUsers] = useState(new Set());
@@ -42,7 +41,6 @@ export default function ScoresPage() {
     });
   }, []);
 
-  const rowRefs = useRef(new Map());
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
 
@@ -53,9 +51,8 @@ export default function ScoresPage() {
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, () => {
       setAuthReady(true);
-      setMyUid(u?.uid || null);
     });
     return unsub;
   }, []);
@@ -271,17 +268,7 @@ export default function ScoresPage() {
     return { total, post, live, pre };
   }, [uniqueEventIDs, eventMap]);
 
-  const scrollToMe = useCallback(() => {
-    const el = myUid ? rowRefs.current.get(myUid) : null;
-    if (!el) return;
-    // Vertical-only: jump to the row without disturbing horizontal scroll position
-    const y = el.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2;
-    window.scrollTo({ top: y, behavior: "smooth" });
-  }, [myUid]);
-
   if (loading && !lastUpdated) return <div className="p-6 text-center">Loading...</div>;
-
-  const myRowVisible = myUid && submissions.some((s) => s.uid === myUid);
 
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
@@ -326,42 +313,26 @@ export default function ScoresPage() {
 
       {/* Header (same width feel as table via centered container) */}
       <section className="max-w-8xl mx-auto mb-4 px-1 sm:px-0">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-               Week {week}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" /> Final: {totals.post}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
-                <span className="w-2 h-2 rounded-full bg-rose-500" /> Live: {totals.live}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
-                <span className="w-2 h-2 rounded-full bg-sky-400" /> Upcoming: {totals.pre}
-              </span>
-              <span className="text-gray-400">•</span>
-              <span className="text-gray-600 dark:text-gray-400">
-                {submissions.length} players
-              </span>
-            </div>
-          </div>
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+           Week {week}
+        </h1>
 
-          <div className="flex items-center gap-2">
-            {myRowVisible && (
-              <button
-                onClick={scrollToMe}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-              >
-                <LocateFixed size={16} />
-                Find Me
-              </button>
-            )}
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
-            </div>
-          </div>
+        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          {lastUpdated ? `Last Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
+          {" • "}
+          {submissions.length} total participants
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Final: {totals.post}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
+            <span className="w-2 h-2 rounded-full bg-rose-500" /> Live: {totals.live}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-zinc-800">
+            <span className="w-2 h-2 rounded-full bg-sky-400" /> Upcoming: {totals.pre}
+          </span>
         </div>
 
         <div className="mt-3">
@@ -415,14 +386,7 @@ export default function ScoresPage() {
               const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
 
               return (
-                <tr
-                  key={entry.uid}
-                  ref={(el) => {
-                    if (el) rowRefs.current.set(entry.uid, el);
-                    else rowRefs.current.delete(entry.uid);
-                  }}
-                  className={rowBg}
-                >
+                <tr key={entry.uid} className={rowBg}>
                   <td
                     className={`${W_USER} py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
                     style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
