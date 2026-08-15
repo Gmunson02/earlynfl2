@@ -312,11 +312,13 @@ export default function AdminPage() {
                 <tr>
                   <th className="text-left px-3 py-2">User Name</th>
                   <th className="text-left px-3 py-2">Email</th>
-                  <th className="text-left px-3 py-2">First Name</th>
-                  <th className="text-left px-3 py-2">Last Name</th>
-                  <th className="text-right px-3 py-2">Balance</th>
-                  <th className="text-right px-3 py-2">Dues Owed</th>
-                  <th className="text-right px-3 py-2">Winnings</th>
+                  <th className="text-left px-3 py-2">Full Name</th>
+                  <th className="text-right px-3 py-2">Starting Balance</th>
+                  <th className="text-right px-3 py-2" title="$1/week × 18 weeks = $18 for a full season">
+                    Dues Owed
+                  </th>
+                  <th className="text-right px-3 py-2">2026 Winnings</th>
+                  <th className="text-right px-3 py-2">Current Balance</th>
                   <th className="text-center px-3 py-2">Submitted</th>
                   <th className="text-center px-3 py-2">Actions</th>
                 </tr>
@@ -325,6 +327,10 @@ export default function AdminPage() {
                 {users.map((u, idx) => {
                   const l = ledger[u.uid] || {};
                   const submitted = submittedUids.has(u.uid);
+                  const startingBalance = Number(l.startingBalance) || 0;
+                  const duesOwed = Number(l.duesOwed) || 0;
+                  const winnings = Number(l.winnings) || 0;
+                  const currentBalance = startingBalance - duesOwed + winnings;
                   return (
                     <tr key={u.uid} className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap">
@@ -338,23 +344,16 @@ export default function AdminPage() {
                       <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
                       <td className="px-3 py-2">
                         <EditableCell
-                          value={l.firstName}
-                          width="w-28"
-                          onSave={(v) => saveLedgerField(u.uid, "firstName", v)}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <EditableCell
-                          value={l.lastName}
-                          width="w-28"
-                          onSave={(v) => saveLedgerField(u.uid, "lastName", v)}
+                          value={l.fullName}
+                          width="w-36"
+                          onSave={(v) => saveLedgerField(u.uid, "fullName", v)}
                         />
                       </td>
                       <td className="px-3 py-2 text-right">
                         <EditableCell
                           type="number"
-                          value={l.balance}
-                          onSave={(v) => saveLedgerField(u.uid, "balance", Number(v) || 0)}
+                          value={l.startingBalance}
+                          onSave={(v) => saveLedgerField(u.uid, "startingBalance", Number(v) || 0)}
                         />
                       </td>
                       <td className="px-3 py-2 text-right">
@@ -370,6 +369,13 @@ export default function AdminPage() {
                           value={l.winnings}
                           onSave={(v) => saveLedgerField(u.uid, "winnings", Number(v) || 0)}
                         />
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right font-bold ${
+                          currentBalance > 0 ? "text-emerald-600 dark:text-emerald-400" : currentBalance < 0 ? "text-red-600 dark:text-red-400" : ""
+                        }`}
+                      >
+                        ${currentBalance.toFixed(2)}
                       </td>
                       <td className="px-3 py-2 text-center">
                         {submitted ? (
