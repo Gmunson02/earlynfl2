@@ -252,7 +252,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-32 bg-white dark:bg-gray-900 min-h-screen">
       <h1 className="text-4xl font-extrabold text-center mb-2 text-gray-900 dark:text-white tracking-tight">
-        🏈 Week {week} Picks
+        Week {week} Picks
       </h1>
 
       {!picksOpen && !submitted && (
