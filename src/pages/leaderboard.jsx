@@ -124,7 +124,7 @@ export default function LeaderboardPage() {
       uid,
       name: p.displayName || uid,
       wins: weeklyWinsMap.get(uid) || 0,  // weekly titles
-      points: p.totalWins || 0,           // season correct picks
+      points: p.totalCorrectPicks || 0,           // season correct picks
     }));
 
     merged.sort(

@@ -152,9 +152,9 @@ async function computeWeek(year, season, week) {
   const players = seasonSnap.exists ? (seasonSnap.data()?.players || {}) : {};
 
   for (const s of standings) {
-    const rec = players[s.uid] || { weeksPlayed: 0, totalWins: 0, bestWeekWins: 0, weeklyWins: {}, displayName: s.displayName || null };
+    const rec = players[s.uid] || { weeksPlayed: 0, totalCorrectPicks: 0, bestWeekWins: 0, weeklyWins: {}, displayName: s.displayName || null };
     rec.weeksPlayed += 1;
-    rec.totalWins += s.wins;
+    rec.totalCorrectPicks += s.wins;
     rec.bestWeekWins = Math.max(rec.bestWeekWins, s.wins);
     rec.weeklyWins[`W${week}`] = s.wins;
     rec.displayName = s.displayName || rec.displayName || null; // keep fresh
