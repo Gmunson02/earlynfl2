@@ -8,7 +8,7 @@ import Head from "next/head";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
-const MAX_SCENARIO_GAMES = 6;
+const MAX_SCENARIO_GAMES = 4;
 
 // Reusable widths so table scrolls instead of crushing cells
 const W_USER = "w-[168px] min-w-[168px]";     // ~14ch
@@ -248,6 +248,22 @@ export default function ScoresPage() {
   // outcomes that are required in every winning scenario. Capped at
   // MAX_SCENARIO_GAMES remaining games to keep this cheap and to avoid
   // showing noise early in the week when nothing is meaningfully decidable.
+  // The tiebreaker is the combined final score of the week's last-kickoff
+  // game. If that game is already final, its actual score is known and ties
+  // resolve deterministically; if it's still remaining, we know WHO wins
+  // each hypothetical outcome but not the final score, so a tie in that
+  // scenario stays "alive but pending the tiebreaker" rather than resolved.
+  const tiebreakerEventID = uniqueEventIDs[uniqueEventIDs.length - 1];
+  const tiebreakerGame = eventMap[tiebreakerEventID];
+  const tiebreakerDecided = tiebreakerGame?.status === "post";
+  const actualTiebreakerScore = tiebreakerDecided
+    ? (tiebreakerGame.homeScore ?? 0) + (tiebreakerGame.awayScore ?? 0)
+    : null;
+  const tiebreakerGuessByUid = useMemo(
+    () => new Map(submissions.map((s) => [s.uid, Number(s.tieBreaker)])),
+    [submissions]
+  );
+
   const buildScenario = useCallback(
     (targetUid) => {
       if (remainingEventIDs.length === 0 || remainingEventIDs.length > MAX_SCENARIO_GAMES) return null;
@@ -264,27 +280,56 @@ export default function ScoresPage() {
         });
 
         let maxWins = -Infinity;
-        let targetWins = 0;
+        const winsByUid = new Map();
         for (const s of submissions) {
           const picks = picksByUid.get(s.uid);
           let wins = decidedByUid.get(s.uid) || 0;
           for (const id of remainingEventIDs) {
             if (picks.get(id) === assignment[id]) wins++;
           }
+          winsByUid.set(s.uid, wins);
           if (wins > maxWins) maxWins = wins;
-          if (s.uid === targetUid) targetWins = wins;
         }
 
-        if (targetWins >= maxWins) winningCombos.push(assignment);
+        const tied = [...winsByUid.entries()].filter(([, wins]) => wins === maxWins).map(([uid]) => uid);
+
+        let winnerUids;
+        let requiresTiebreaker = false;
+        if (tied.length === 1) {
+          winnerUids = tied;
+        } else if (tiebreakerDecided) {
+          // Score is known — resolve the tie for real, no future dependency
+          let minDiff = Infinity;
+          for (const uid of tied) {
+            const guess = tiebreakerGuessByUid.get(uid);
+            const diff = Number.isFinite(guess) ? Math.abs(guess - actualTiebreakerScore) : Infinity;
+            if (diff < minDiff) minDiff = diff;
+          }
+          winnerUids = tied.filter((uid) => {
+            const guess = tiebreakerGuessByUid.get(uid);
+            const diff = Number.isFinite(guess) ? Math.abs(guess - actualTiebreakerScore) : Infinity;
+            return diff === minDiff;
+          });
+        } else {
+          // Tiebreaker game hasn't happened yet — anyone tied is still alive
+          winnerUids = tied;
+          requiresTiebreaker = true;
+        }
+
+        if (winnerUids.includes(targetUid)) {
+          winningCombos.push({ assignment, requiresTiebreaker });
+        }
       }
 
       if (winningCombos.length === 0) return { status: "eliminated" };
-      if (winningCombos.length === totalCombos) return { status: "locked" };
+      if (winningCombos.length === totalCombos && winningCombos.every((c) => !c.requiresTiebreaker)) {
+        return { status: "locked" };
+      }
 
       // A game is "necessary" if every winning combo needed the same team to win it
       const necessary = [];
       for (const id of remainingEventIDs) {
-        const values = new Set(winningCombos.map((c) => c[id]));
+        const values = new Set(winningCombos.map((c) => c.assignment[id]));
         if (values.size === 1) {
           const g = eventMap[id];
           const needShort = [...values][0];
@@ -296,13 +341,25 @@ export default function ScoresPage() {
         }
       }
 
+      const needsTiebreaker = winningCombos.every((c) => c.requiresTiebreaker);
+
       return {
         status: "conditional",
         necessary,
-        fullyDetermined: necessary.length === remainingEventIDs.length,
+        needsTiebreaker,
+        fullyDetermined: necessary.length === remainingEventIDs.length && !needsTiebreaker,
       };
     },
-    [remainingEventIDs, submissions, eventMap, picksByUid, decidedByUid]
+    [
+      remainingEventIDs,
+      submissions,
+      eventMap,
+      picksByUid,
+      decidedByUid,
+      tiebreakerDecided,
+      actualTiebreakerScore,
+      tiebreakerGuessByUid,
+    ]
   );
 
   const totals = useMemo(() => {
@@ -321,6 +378,8 @@ export default function ScoresPage() {
 
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
+  const joinWithAnd = (arr) =>
+    arr.length <= 1 ? arr.join("") : `${arr.slice(0, -1).join(", ")}${arr.length > 2 ? "," : ""} and ${arr[arr.length - 1]}`;
 
   const formatGameDate = (iso) =>
     new Date(iso)
@@ -576,14 +635,22 @@ export default function ScoresPage() {
                             } else if (scenario.status === "eliminated") {
                               message = "Eliminated from 1st place this week.";
                             } else {
-                              const parts = scenario.necessary.map((n) => `${n.needAbbr} beats ${n.overAbbr}`);
-                              if (parts.length === 0) {
+                              const teamAbbrs = scenario.necessary.map((n) => n.needAbbr);
+                              const clauses = [];
+                              if (teamAbbrs.length > 0) {
+                                clauses.push(`${joinWithAnd(teamAbbrs)} must win`);
+                              }
+                              if (scenario.needsTiebreaker) {
+                                clauses.push("you must win the tiebreaker");
+                              }
+
+                              if (clauses.length === 0) {
                                 message =
                                   "Path to 1st depends on how the remaining games go — several combinations could work in your favor.";
                               } else if (scenario.fullyDetermined) {
-                                message = `Needs: ${parts.join(", ")} to finish 1st.`;
+                                message = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
                               } else {
-                                message = `Needs: ${parts.join(", ")} — plus the right combination of the other remaining game(s).`;
+                                message = `Needs: ${joinWithAnd(clauses)} — plus the right combination of the other remaining game(s).`;
                               }
                             }
                           }
