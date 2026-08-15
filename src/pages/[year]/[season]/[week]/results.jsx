@@ -5,7 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
-import { LocateFixed } from "lucide-react";
+import { LocateFixed, ChevronLeft, ChevronRight } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -30,6 +30,9 @@ export default function ScoresPage() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [myUid, setMyUid] = useState(null);
+
+  // Portrait-only single-game view: index into uniqueEventIDs
+  const [gameIndex, setGameIndex] = useState(0);
 
   const rowRefs = useRef(new Map());
   const pollTimer = useRef(null);
@@ -177,6 +180,12 @@ export default function ScoresPage() {
     );
   }, [eventMap]);
 
+  // Clamp portrait game index whenever the event list changes (e.g. first load)
+  useEffect(() => {
+    if (uniqueEventIDs.length === 0) return;
+    setGameIndex((i) => Math.min(i, uniqueEventIDs.length - 1));
+  }, [uniqueEventIDs]);
+
   const totals = useMemo(() => {
     const total = uniqueEventIDs.length;
     let post = 0, live = 0, pre = 0;
@@ -295,8 +304,8 @@ export default function ScoresPage() {
         </div>
       </section>
 
-      {/* Table */}
-      <div className="max-w-8xl mx-auto overflow-x-auto pb-28">
+      {/* Table (landscape / wide screens) */}
+      <div className="hidden sm:block max-w-8xl mx-auto overflow-x-auto pb-28">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm sticky top-0 z-20">
@@ -396,6 +405,103 @@ export default function ScoresPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Single-game view (portrait / narrow screens) */}
+      {uniqueEventIDs.length > 0 && (
+        <div className="sm:hidden max-w-8xl mx-auto pb-28">
+          {(() => {
+            const eventID = uniqueEventIDs[gameIndex];
+            const g = eventMap[eventID];
+            const showScore = g?.status === "in" || g?.status === "post";
+            const goPrev = () => setGameIndex((i) => Math.max(0, i - 1));
+            const goNext = () => setGameIndex((i) => Math.min(uniqueEventIDs.length - 1, i + 1));
+
+            return (
+              <>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <button
+                    onClick={goPrev}
+                    disabled={gameIndex === 0}
+                    className="p-2 rounded-md bg-slate-800 text-white disabled:opacity-30"
+                    aria-label="Previous game"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Game {gameIndex + 1} of {uniqueEventIDs.length}
+                    </div>
+                    <div className="font-bold text-sm">
+                      {g?.away?.short || g?.away?.abbr} @ {g?.home?.short || g?.home?.abbr}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={goNext}
+                    disabled={gameIndex === uniqueEventIDs.length - 1}
+                    className="p-2 rounded-md bg-slate-800 text-white disabled:opacity-30"
+                    aria-label="Next game"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+
+                <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
+                  <thead className="bg-slate-800 text-white shadow-sm">
+                    <tr>
+                      <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}>
+                        User
+                      </th>
+                      <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
+                      <th className={`px-1 py-1 text-center font-bold ${borderClass}`}>
+                        <HeaderCompact g={g} showScores={showScore} />
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {submissions.map((entry, index) => {
+                      const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+                      const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+                      const pickTeam = picksMap.get(eventID);
+                      const correct = winners[eventID] === pickTeam;
+                      const pickedHome = g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
+                      const team = pickedHome
+                        ? { logo: g?.home?.logo, label: g?.home?.abbr }
+                        : { logo: g?.away?.logo, label: g?.away?.abbr };
+                      const isPending = g?.status !== "post";
+                      const bgColor = isPending ? "" : correct ? "bg-green-200" : "bg-red-200";
+
+                      return (
+                        <tr key={entry.uid} className={rowBg}>
+                          <td
+                            className={`py-1 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                            style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}
+                            title={entry.displayName || ""}
+                          >
+                            {truncate14(entry.displayName)}
+                          </td>
+                          <td className={`w-[56px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
+                            {entry.winnerCount}
+                          </td>
+                          <td className={`text-center px-1 py-1 ${borderClass} ${bgColor}`}>
+                            {pickTeam && team?.logo ? (
+                              <Image src={team.logo} alt={team?.label || "Team"} width={50} height={50} className="mx-auto" />
+                            ) : (
+                              <span className="text-gray-400">–</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
