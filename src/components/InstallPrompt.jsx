@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Share, ChevronDown, PlusSquare } from "lucide-react";
+import { Share, ChevronDown, PlusSquare, X } from "lucide-react";
 
-const DISMISS_KEY = "installPromptDismissedUntil";
+const FOREVER_KEY = "installPromptHiddenForever";
+const SNOOZE_KEY = "installPromptSnoozedUntil";
+const SNOOZE_DAYS = 7;
 
 function isStandalone() {
   if (typeof window === "undefined") return false;
@@ -24,7 +26,9 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (isStandalone()) return; // already installed
 
-    if (localStorage.getItem(DISMISS_KEY) === "forever") return;
+    if (localStorage.getItem(FOREVER_KEY) === "true") return;
+    const snoozedUntil = Number(localStorage.getItem(SNOOZE_KEY) || 0);
+    if (Date.now() < snoozedUntil) return;
 
     setDismissed(false);
 
@@ -36,8 +40,13 @@ export default function InstallPrompt() {
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
   }, []);
 
-  const dismiss = () => {
-    localStorage.setItem(DISMISS_KEY, "forever");
+  const snooze = () => {
+    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 86400000));
+    setDismissed(true);
+  };
+
+  const hideForever = () => {
+    localStorage.setItem(FOREVER_KEY, "true");
     setDismissed(true);
   };
 
@@ -46,14 +55,15 @@ export default function InstallPrompt() {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       setDeferredPrompt(null);
-      if (outcome === "accepted" || outcome === "dismissed") dismiss();
+      if (outcome === "accepted") hideForever();
+      else snooze();
       return;
     }
     if (isIOS()) {
       setShowIosHelp(true);
       return;
     }
-    dismiss();
+    snooze();
   };
 
   if (dismissed || isStandalone()) return null;
@@ -75,7 +85,7 @@ export default function InstallPrompt() {
             3. Tap <PlusSquare size={14} className="inline" /> &quot;Add to Home Screen&quot;
           </p>
           <button
-            onClick={dismiss}
+            onClick={hideForever}
             className="text-xs font-medium text-indigo-600 dark:text-indigo-300 hover:underline"
           >
             Hide this forever
@@ -86,7 +96,7 @@ export default function InstallPrompt() {
           <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
             Install EarlyNFL for quicker access and reminders
           </p>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleInstall}
               className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
@@ -94,10 +104,12 @@ export default function InstallPrompt() {
               Install
             </button>
             <button
-              onClick={dismiss}
-              className="text-xs font-medium text-indigo-500 dark:text-indigo-300 hover:underline"
+              onClick={snooze}
+              aria-label="Remind me later"
+              title="Remind me later"
+              className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-300"
             >
-              Hide this forever
+              <X size={18} />
             </button>
           </div>
         </div>
