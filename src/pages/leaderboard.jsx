@@ -170,9 +170,9 @@ export default function LeaderboardPage() {
               <table className="min-w-max w-full text-sm">
                 <thead className="bg-blue-600 text-white">
                   <tr>
-                    <th className="text-left px-3 py-2 w-[48px]">#</th>
+                    <th className="text-left px-3 py-2 w-[36px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 sm:hidden w-[110px]">Wins • Pts</th>
+                    <th className="text-right px-3 py-2 sm:hidden w-[90px]">Wins • Pts</th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[72px]">
                       <span className="sm:hidden">W</span><span className="hidden sm:inline">Wins</span>
                     </th>
@@ -188,8 +188,10 @@ export default function LeaderboardPage() {
                       className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}
                     >
                       <td className="px-3 py-2 font-medium">{r.rank}</td>
-                      <td className="px-3 py-2 font-semibold">{r.name}</td>
-                      <td className="sm:hidden px-3 py-2 text-right">
+                      <td className="px-3 py-2 font-semibold max-w-[120px] sm:max-w-none truncate whitespace-nowrap" title={r.name}>
+                        {r.name}
+                      </td>
+                      <td className="sm:hidden px-3 py-2 text-right whitespace-nowrap">
                         {r.wins} • {r.points}
                       </td>
                       <td className="hidden sm:table-cell px-3 py-2 text-right">{r.wins}</td>
@@ -242,9 +244,9 @@ export default function LeaderboardPage() {
               <table className="min-w-max w-full text-sm">
                 <thead className="bg-zinc-700 text-white">
                   <tr>
-                    <th className="text-left px-3 py-2 w-[48px]">#</th>
+                    <th className="text-left px-3 py-2 w-[36px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 sm:hidden w-[110px]">Wins • Pts</th>
+                    <th className="text-right px-3 py-2 sm:hidden w-[90px]">Wins • Pts</th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[90px]">Total Wins</th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[80px]">Points</th>
                   </tr>
@@ -256,8 +258,10 @@ export default function LeaderboardPage() {
                       className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}
                     >
                       <td className="px-3 py-2 font-medium">{r.rank}</td>
-                      <td className="px-3 py-2 font-semibold">{r.name}</td>
-                      <td className="sm:hidden px-3 py-2 text-right">
+                      <td className="px-3 py-2 font-semibold max-w-[120px] sm:max-w-none truncate whitespace-nowrap" title={r.name}>
+                        {r.name}
+                      </td>
+                      <td className="sm:hidden px-3 py-2 text-right whitespace-nowrap">
                         {r.wins} • {r.points}
                       </td>
                       <td className="hidden sm:table-cell px-3 py-2 text-right">{r.wins}</td>
