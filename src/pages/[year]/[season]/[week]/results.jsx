@@ -570,29 +570,11 @@ export default function ScoresPage() {
                             const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
                             const isPending = g?.status !== "post";
                             const bgColor = isPending
-                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
+                              ? "bg-indigo-50 dark:bg-indigo-950 text-gray-900 dark:text-white border border-indigo-200 dark:border-indigo-800"
                               : correct
                               ? "bg-green-200 dark:bg-green-300 text-gray-900"
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
                             const showScore = g?.status === "in" || g?.status === "post";
-
-                            if (isPending) {
-                              const highlightPick = "px-1.5 py-0.5 rounded-full ring-2 ring-indigo-500 font-bold";
-                              return (
-                                <div
-                                  key={eventID}
-                                  className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 min-h-11 text-sm font-mono ${bgColor}`}
-                                >
-                                  <span className={pickTeam && !pickedHome ? highlightPick : ""}>
-                                    {g?.away?.abbr} {showScore && g?.awayScore != null ? g.awayScore : ""}
-                                  </span>
-                                  <span className="opacity-50">v.</span>
-                                  <span className={pickTeam && pickedHome ? highlightPick : ""}>
-                                    {showScore && g?.homeScore != null ? g.homeScore : ""} {g?.home?.abbr}
-                                  </span>
-                                </div>
-                              );
-                            }
 
                             return (
                               <div
@@ -605,6 +587,11 @@ export default function ScoresPage() {
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
                                 <div className="flex flex-col leading-tight font-mono">
+                                  {isPending && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                                      Pick
+                                    </span>
+                                  )}
                                   <span className="text-sm font-bold">
                                     {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
                                   </span>
