@@ -9,10 +9,12 @@ const CURRENT_SEASON = "reg"; // standings only count regular season
 const LAST_YEAR = 2025;
 const LAST_SEASON = "reg";
 
-async function loadSeasonWinner(year, season) {
+// Loads a full season's standings, summed by display name so a person's
+// fragmented guest accounts (same name, different uids) count as one entry.
+async function loadSeasonStandingsByName(year, season) {
   const seasonId = `${year}-${season}`;
   const seasonSnap = await getDoc(doc(db, "season_leaderboard", seasonId));
-  if (!seasonSnap.exists()) return null;
+  if (!seasonSnap.exists()) return [];
   const players = seasonSnap.data().players || {};
 
   const weeklySnap = await getDocs(
@@ -26,16 +28,32 @@ async function loadSeasonWinner(year, season) {
     });
   });
 
-  const ranked = Object.entries(players)
-    .map(([uid, p]) => ({
-      uid,
-      name: p.displayName || uid,
-      wins: titleWins[uid] || 0,
-      points: p.totalCorrectPicks || 0,
-    }))
-    .sort((a, b) => b.wins - a.wins || b.points - a.points);
+  const byName = new Map();
+  for (const [uid, p] of Object.entries(players)) {
+    const name = (p.displayName || uid).trim();
+    const wins = titleWins[uid] || 0;
+    const points = p.totalCorrectPicks || 0;
+    const existing = byName.get(name) || { name, wins: 0, points: 0 };
+    existing.wins += wins;
+    existing.points += points;
+    byName.set(name, existing);
+  }
 
-  return ranked[0] || null;
+  const merged = Array.from(byName.values());
+  merged.sort((a, b) => b.wins - a.wins || b.points - a.points || a.name.localeCompare(b.name));
+
+  let lastKey = null;
+  let rank = 0;
+  let place = 0;
+  return merged.map((r) => {
+    place += 1;
+    const key = `${r.wins}|${r.points}`;
+    if (key !== lastKey) {
+      rank = place;
+      lastKey = key;
+    }
+    return { ...r, rank };
+  });
 }
 
 export default function LeaderboardPage() {
@@ -43,7 +61,7 @@ export default function LeaderboardPage() {
   const [seasonDoc, setSeasonDoc] = useState(null);
   const [weeklyDocs, setWeeklyDocs] = useState([]);
   const [latestWeekly, setLatestWeekly] = useState(null);
-  const [lastSeasonWinner, setLastSeasonWinner] = useState(null);
+  const [lastSeasonRows, setLastSeasonRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -63,12 +81,12 @@ export default function LeaderboardPage() {
       wSnap.forEach((d) => weeklies.push({ id: d.id, ...d.data() }));
       weeklies.sort((a, b) => (b.week || 0) - (a.week || 0));
 
-      const lastWinner = await loadSeasonWinner(LAST_YEAR, LAST_SEASON);
+      const lastSeason = await loadSeasonStandingsByName(LAST_YEAR, LAST_SEASON);
 
       setSeasonDoc(season);
       setWeeklyDocs(weeklies);
       setLatestWeekly(weeklies[0] || null);
-      setLastSeasonWinner(lastWinner);
+      setLastSeasonRows(lastSeason);
       setLoading(false);
     };
     load();
@@ -132,30 +150,7 @@ export default function LeaderboardPage() {
     });
   }, [seasonDoc, weeklyWinsMap]);
 
-  // Last week's full standings, de-duplicated by display name (guest accounts fragment real people)
-  const lastWeekDeduped = useMemo(() => {
-    if (!latestWeekly?.standings) return [];
-    const byName = new Map();
-    for (const s of latestWeekly.standings) {
-      const name = (s.displayName || s.uid || "Unknown").trim();
-      const existing = byName.get(name);
-      if (!existing || (s.wins || 0) > (existing.wins || 0)) byName.set(name, s);
-    }
-    const list = Array.from(byName.values()).sort((a, b) => (b.wins || 0) - (a.wins || 0));
-
-    let lastKey = null;
-    let rank = 0;
-    let place = 0;
-    return list.map((s) => {
-      place += 1;
-      const key = String(s.wins || 0);
-      if (key !== lastKey) {
-        rank = place;
-        lastKey = key;
-      }
-      return { ...s, rank };
-    });
-  }, [latestWeekly]);
+  const lastSeasonWinner = lastSeasonRows[0] || null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white px-4 py-6">
@@ -202,36 +197,6 @@ export default function LeaderboardPage() {
             </div>
           ) : (
             <span className="text-zinc-500">—</span>
-          )}
-        </section>
-
-        {/* Last Season's Winner (2025) */}
-        <section className="bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700 p-5">
-          <h2 className="text-xl font-bold mb-3">
-            Last Season&apos;s Winner ({LAST_YEAR})
-          </h2>
-
-          {loading ? (
-            <p className="text-zinc-500">Loading…</p>
-          ) : !lastSeasonWinner ? (
-            <p className="text-zinc-500">No data for {LAST_YEAR}.</p>
-          ) : (
-            <div className="rounded-lg border border-amber-300/60 dark:border-amber-400/30 bg-gradient-to-r from-amber-50 to-pink-50 dark:from-amber-900/20 dark:to-pink-900/20 px-3 py-2">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-lg">🏆</span>
-                <span className="font-bold text-base">{lastSeasonWinner.name}</span>
-                <span className="text-sm text-zinc-600 dark:text-zinc-300">
-                  • Total Wins:&nbsp;
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                    {lastSeasonWinner.wins}
-                  </span>
-                </span>
-                <span className="text-sm text-zinc-600 dark:text-zinc-300">
-                  • Points:&nbsp;
-                  <span className="font-semibold">{lastSeasonWinner.points}</span>
-                </span>
-              </div>
-            </div>
           )}
         </section>
 
@@ -282,14 +247,44 @@ export default function LeaderboardPage() {
           )}
         </section>
 
-        {/* Last week's full standings, collapsible, de-duped by name */}
-        {!loading && lastWeekDeduped.length > 0 && (
+        {/* Last Season's Winner (2025) */}
+        <section className="bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700 p-5">
+          <h2 className="text-xl font-bold mb-3">
+            Last Season&apos;s Winner ({LAST_YEAR})
+          </h2>
+
+          {loading ? (
+            <p className="text-zinc-500">Loading…</p>
+          ) : !lastSeasonWinner ? (
+            <p className="text-zinc-500">No data for {LAST_YEAR}.</p>
+          ) : (
+            <div className="rounded-lg border border-amber-300/60 dark:border-amber-400/30 bg-gradient-to-r from-amber-50 to-pink-50 dark:from-amber-900/20 dark:to-pink-900/20 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-lg">🏆</span>
+                <span className="font-bold text-base">{lastSeasonWinner.name}</span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-300">
+                  • Total Wins:&nbsp;
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                    {lastSeasonWinner.wins}
+                  </span>
+                </span>
+                <span className="text-sm text-zinc-600 dark:text-zinc-300">
+                  • Points:&nbsp;
+                  <span className="font-semibold">{lastSeasonWinner.points}</span>
+                </span>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Last Season's Standings (2025), collapsed by default, de-duped by name */}
+        {!loading && lastSeasonRows.length > 0 && (
           <details className="bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700 p-5">
             <summary className="text-xl font-bold cursor-pointer select-none">
-              Last Week&apos;s Standings {latestWeekly?.week ? `(Week ${latestWeekly.week})` : ""}
+              Last Season&apos;s Standings ({LAST_YEAR})
             </summary>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-3">
-              De-duplicated by display name — guest accounts can fragment the same person into multiple rows.
+              De-duplicated by display name — guest accounts from {LAST_YEAR} are merged into one row per name.
             </p>
             <div className="overflow-x-auto">
               <table className="min-w-max w-full text-sm">
@@ -297,20 +292,20 @@ export default function LeaderboardPage() {
                   <tr>
                     <th className="text-left px-3 py-2 w-[48px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 w-[72px]">Wins</th>
-                    <th className="text-right px-3 py-2 w-[80px]">TB</th>
+                    <th className="text-right px-3 py-2 w-[90px]">Total Wins</th>
+                    <th className="text-right px-3 py-2 w-[80px]">Points</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lastWeekDeduped.map((s, idx) => (
+                  {lastSeasonRows.map((r, idx) => (
                     <tr
-                      key={s.uid}
+                      key={r.name}
                       className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}
                     >
-                      <td className="px-3 py-2 font-medium">{s.rank}</td>
-                      <td className="px-3 py-2 font-semibold">{s.displayName || s.uid}</td>
-                      <td className="px-3 py-2 text-right">{s.wins ?? "—"}</td>
-                      <td className="px-3 py-2 text-right">{s.tieBreaker ?? "—"}</td>
+                      <td className="px-3 py-2 font-medium">{r.rank}</td>
+                      <td className="px-3 py-2 font-semibold">{r.name}</td>
+                      <td className="px-3 py-2 text-right">{r.wins}</td>
+                      <td className="px-3 py-2 text-right">{r.points}</td>
                     </tr>
                   ))}
                 </tbody>
