@@ -312,6 +312,10 @@ export default function GameCenter() {
                 // it's only reliably populated for scoring plays.
                 const downText =
                   sit.down >= 1 && sit.down <= 4 ? `${DOWN_NAMES[sit.down]} & ${sit.distance}` : "";
+                // ESPN briefly leaves isRedZone=true right after a score (down
+                // resets to -1 before the situation fully clears) — only trust
+                // it when there's also a valid current down.
+                const isRedZoneNow = Boolean(sit.isRedZone) && Boolean(downText);
                 const spotText = (() => {
                   if (sit.yardLine == null || !possId) return "";
                   if (sit.yardLine === 50) return "50";
@@ -343,7 +347,7 @@ export default function GameCenter() {
       possessionTeamId: possId,
       downDistanceText: downText,
       yardLineText: spotText,
-      isRedZone: sit.isRedZone,
+      isRedZone: isRedZoneNow,
       broadcast,
     })
   }
@@ -369,7 +373,7 @@ export default function GameCenter() {
     )}
   </div>
   <div className="flex justify-center">
-    {isLive && sit.isRedZone && (
+    {isLive && isRedZoneNow && (
       <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-300 text-red-900">
         RED ZONE
       </span>
