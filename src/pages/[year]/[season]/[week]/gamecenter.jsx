@@ -395,7 +395,7 @@ export default function GameCenter() {
                             alt={`${away?.team?.shortDisplayName || "Away"} logo`}
                             width={40}
                             height={40}
-                            className={`rounded-full ${pickedAway ? "ring-2 ring-emerald-500" : ""}`}
+                            className="rounded-full"
                             loading="lazy"
                           />
                         )}
@@ -425,7 +425,7 @@ export default function GameCenter() {
                             alt={`${home?.team?.shortDisplayName || "Home"} logo`}
                             width={40}
                             height={40}
-                            className={`rounded-full ${pickedHome ? "ring-2 ring-emerald-500" : ""}`}
+                            className="rounded-full"
                             loading="lazy"
                           />
                         )}
