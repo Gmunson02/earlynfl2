@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { X, Share, PlusSquare } from "lucide-react";
+import { Share, ChevronDown, PlusSquare } from "lucide-react";
 
 const DISMISS_KEY = "installPromptDismissedUntil";
-const DISMISS_DAYS = 14;
 
 function isStandalone() {
   if (typeof window === "undefined") return false;
@@ -25,8 +24,7 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (isStandalone()) return; // already installed
 
-    const dismissedUntil = Number(localStorage.getItem(DISMISS_KEY) || 0);
-    if (Date.now() < dismissedUntil) return;
+    if (localStorage.getItem(DISMISS_KEY) === "forever") return;
 
     setDismissed(false);
 
@@ -39,7 +37,7 @@ export default function InstallPrompt() {
   }, []);
 
   const dismiss = () => {
-    localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 86400000));
+    localStorage.setItem(DISMISS_KEY, "forever");
     setDismissed(true);
   };
 
@@ -66,33 +64,40 @@ export default function InstallPrompt() {
     <div className="mb-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 p-3 sm:p-4">
       {showIosHelp ? (
         <div className="text-sm text-indigo-900 dark:text-indigo-100">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="font-semibold">Add EarlyNFL to your Home Screen</p>
-            <button onClick={dismiss} aria-label="Dismiss" className="shrink-0">
-              <X size={18} />
-            </button>
-          </div>
+          <p className="font-semibold mb-2">Add EarlyNFL to your Home Screen</p>
           <p className="flex items-center gap-1 mb-1">
             1. Tap the Share button <Share size={14} className="inline" /> in Safari
           </p>
-          <p className="flex items-center gap-1">
-            2. Tap <PlusSquare size={14} className="inline" /> &quot;Add to Home Screen&quot;
+          <p className="flex items-center gap-1 mb-1">
+            2. Tap &quot;View More&quot; <ChevronDown size={14} className="inline" />
           </p>
+          <p className="flex items-center gap-1 mb-3">
+            3. Tap <PlusSquare size={14} className="inline" /> &quot;Add to Home Screen&quot;
+          </p>
+          <button
+            onClick={dismiss}
+            className="text-xs font-medium text-indigo-600 dark:text-indigo-300 hover:underline"
+          >
+            Hide this forever
+          </button>
         </div>
       ) : (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
-            📱 Install EarlyNFL for quicker access and reminders
+            Install EarlyNFL for quicker access and reminders
           </p>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={handleInstall}
               className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
             >
               Install
             </button>
-            <button onClick={dismiss} aria-label="Dismiss" className="text-indigo-500 hover:text-indigo-700">
-              <X size={18} />
+            <button
+              onClick={dismiss}
+              className="text-xs font-medium text-indigo-500 dark:text-indigo-300 hover:underline"
+            >
+              Hide this forever
             </button>
           </div>
         </div>
