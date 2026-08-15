@@ -658,7 +658,7 @@ export default function ScoresPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                {submissions.map((entry) => {
+                {[...submissions].sort((a, b) => a.rank - b.rank).map((entry) => {
                   const pickTeam = entry.picks.find((p) => p.eventID === selectedGameID)?.teamName;
                   const pickedHome = g.home?.abbr === pickTeam || g.home?.short === pickTeam;
                   const label = pickTeam ? (pickedHome ? g.home?.abbr : g.away?.abbr) : "—";
