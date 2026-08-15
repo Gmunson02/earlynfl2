@@ -8,13 +8,17 @@ export default function BottomNav() {
   const router = useRouter();
   const { seasonYear, seasonType, value: week, isBeforeKickoff } = useScheduleWeek("nfl-2026");
 
+  // Preseason is a free-editing beta period — no kickoff deadline
+  const picksOpen = isBeforeKickoff || seasonType === "pre";
+
   const buildWeekPath = (y, s, w, leaf) =>
     y && s && w && leaf ? `/${y}/${s}/${w}/${leaf}` : null;
 
-  // Picks close once the week's first game kicks off — same rule enforced server-side
+  // Picks close once the week's first game kicks off (except preseason) —
+  // same rule enforced server-side
   const picksHref = useMemo(
-    () => (isBeforeKickoff ? buildWeekPath(seasonYear, seasonType, week, "picks") : null),
-    [seasonYear, seasonType, week, isBeforeKickoff]
+    () => (picksOpen ? buildWeekPath(seasonYear, seasonType, week, "picks") : null),
+    [seasonYear, seasonType, week, picksOpen]
   );
 
   const resultsHref = useMemo(
@@ -83,7 +87,7 @@ export default function BottomNav() {
                 <span
                   aria-disabled
                   className="flex flex-col items-center opacity-50 cursor-not-allowed !no-underline [text-decoration:none!important] [text-decoration-skip-ink:none] [text-decoration-thickness:0]"
-                  title={item.label === "Picks" && !isBeforeKickoff ? "Picks are closed for this week" : "Loading week…"}
+                  title={item.label === "Picks" && !picksOpen ? "Picks are closed for this week" : "Loading week…"}
                 >
                   {content}
                 </span>

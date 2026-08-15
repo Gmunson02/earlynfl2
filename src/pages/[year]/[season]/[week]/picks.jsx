@@ -99,6 +99,10 @@ export default function PicksPage({ year, week, season, matchups }) {
     return () => clearInterval(id);
   }, [matchups]);
 
+  // Preseason is a free-editing beta period — no kickoff deadline
+  const isPreseason = season === "pre";
+  const picksOpen = isBeforeKickoff || isPreseason;
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -189,8 +193,8 @@ export default function PicksPage({ year, week, season, matchups }) {
   };
 
   const toggleLock = () => {
-    // NEW: safety guard – do not unlock after kickoff
-    if (!isBeforeKickoff) return;
+    // safety guard – do not unlock after kickoff (except preseason)
+    if (!picksOpen) return;
     setSubmitted(false);
     setHasUnlocked(true);
     // Do not delete timestamps from local state
@@ -199,7 +203,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   const pickedGames = matchups.filter((game) => picks[game.eventId]);
   const isSubmitDisabled =
     submitted ||
-    !isBeforeKickoff ||
+    !picksOpen ||
     pickedGames.length !== matchups.length ||
     tieBreaker.trim() === "";
 
@@ -209,7 +213,7 @@ export default function PicksPage({ year, week, season, matchups }) {
         🏈 Week {week} Picks
       </h1>
 
-      {!isBeforeKickoff && !submitted && (
+      {!picksOpen && !submitted && (
         <div className="mb-4 text-center text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
           Picks are closed for this week — the first game has already started.
         </div>
@@ -237,8 +241,8 @@ export default function PicksPage({ year, week, season, matchups }) {
         </div>
       )}
 
-      {/* NEW: Hide Unlock button once the first game starts */}
-      {submitted && isBeforeKickoff && (
+      {/* Hide Unlock button once the first game starts (except preseason) */}
+      {submitted && picksOpen && (
         <div className="flex justify-center mb-4">
           <button
             onClick={toggleLock}

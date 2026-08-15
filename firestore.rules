@@ -6,6 +6,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // Preseason weeks are a free-editing beta period — no deadline.
+    // weekKey looks like "2026-pre-W2" or "2026-reg-W3".
+    function isPreseasonWeek(weekKey) {
+      return weekKey.matches('^[0-9]{4}-pre-W[0-9]+$');
+    }
+
     // ----------------------------
     // Profiles
     // ----------------------------
@@ -37,6 +43,7 @@ service cloud.firestore {
                      && request.auth.uid == userId
                      && (
                        isAdmin() ||
+                       isPreseasonWeek(weekKey) ||
                        request.time < get(/databases/$(database)/documents/week_locks/$(weekKey)).data.locksAt
                      );
       }
