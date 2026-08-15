@@ -172,7 +172,10 @@ export default function ScoresPage() {
 
   const scrollToMe = useCallback(() => {
     const el = myUid ? rowRefs.current.get(myUid) : null;
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    if (!el) return;
+    // Vertical-only: jump to the row without disturbing horizontal scroll position
+    const y = el.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2;
+    window.scrollTo({ top: y, behavior: "smooth" });
   }, [myUid]);
 
   if (loading && !lastUpdated) return <div className="p-6 text-center">Loading...</div>;
@@ -279,7 +282,10 @@ export default function ScoresPage() {
         <table className={`min-w-max w-full text-base border-collapse ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm sticky top-0 z-20">
             <tr>
-              <th className={`${W_USER} px-2 py-1 sticky left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}>
+              <th
+                className={`${W_USER} py-1 sticky left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}
+                style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
+              >
                 User
               </th>
               <th className={`${W_WINS} px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
@@ -300,12 +306,7 @@ export default function ScoresPage() {
 
           <tbody>
             {submissions.map((entry, index) => {
-              const isMe = entry.uid === myUid;
-              const rowBg = isMe
-                ? "bg-amber-50 dark:bg-amber-900/30"
-                : index % 2 === 0
-                ? "bg-white dark:bg-zinc-900"
-                : "bg-gray-50 dark:bg-zinc-800";
+              const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
               const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
 
               return (
@@ -318,11 +319,11 @@ export default function ScoresPage() {
                   className={rowBg}
                 >
                   <td
-                    className={`${W_USER} px-2 py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                    className={`${W_USER} py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                    style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
                     title={entry.displayName || ""}
                   >
                     {truncate14(entry.displayName)}
-                    {isMe && " 👋"}
                   </td>
 
                   <td className={`${W_WINS} px-2 py-1 text-center ${borderClass}`}>
