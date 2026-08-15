@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
-import { onAuthStateChanged, signInAnonymously, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import Head from "next/head";
@@ -80,25 +80,13 @@ export default function HomePage() {
     }
   };
 
-  const handleGuest = async () => {
-    setLoading(true);
-    try {
-      // If already signed in, route based on profile
-      const u = auth.currentUser;
-      if (u) {
-        if (!u.isAnonymous) return router.push("/dashboard");
-        // anon: send to onboarding; dashboard gate happens after they set a name
-        return router.push("/guest");
-      }
-      // Create anon user, then to onboarding
-      await signInAnonymously(auth);
-      router.push("/guest");
-    } catch (err) {
-      console.error("Guest sign-in failed:", err);
-      alert("Guest sign-in failed");
-    } finally {
-      setLoading(false);
-    }
+  const handleGuest = () => {
+    // No session is created here — /guest shows the recommendation first
+    // and only creates an anonymous account once someone actually commits
+    // to a guest name, so nothing gets left half-finished.
+    const u = auth.currentUser;
+    if (u && !u.isAnonymous) return router.push("/dashboard");
+    router.push("/guest");
   };
 
   if (!hydrated) return null;

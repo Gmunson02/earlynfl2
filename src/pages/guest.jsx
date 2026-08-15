@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { auth, db } from "../lib/firebase";
 import {
   onAuthStateChanged,
+  signInAnonymously,
   GoogleAuthProvider,
   linkWithPopup,
   signInWithPopup,
@@ -18,14 +19,10 @@ export default function GuestPage() {
   const [saving, setSaving] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
+  // No redirect here — arriving with no session yet is the normal case now.
+  // We just track it in case someone already has one (e.g. came back via Back button).
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (!u) {
-        router.replace("/");
-      } else {
-        setUser(u);
-      }
-    });
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
     return unsub;
   }, []);
 
@@ -35,7 +32,14 @@ export default function GuestPage() {
 
     setSaving(true);
     try {
-      await setDoc(doc(db, "users", user.uid), {
+      // Only create the anonymous session now that they've actually committed
+      let currentUser = user;
+      if (!currentUser) {
+        const result = await signInAnonymously(auth);
+        currentUser = result.user;
+      }
+
+      await setDoc(doc(db, "users", currentUser.uid), {
         displayName: displayName.trim(),
         isGuest: true,
         theme: "light",
