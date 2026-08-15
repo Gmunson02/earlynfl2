@@ -298,7 +298,7 @@ export default function ScoresPage() {
       {/* Table */}
       <div className="max-w-8xl mx-auto overflow-x-auto pb-28">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
-        <table className={`min-w-max w-full text-base border-collapse ${borderClass}`}>
+        <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm sticky top-0 z-20">
             <tr>
               <th
