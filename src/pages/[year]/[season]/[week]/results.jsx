@@ -41,6 +41,9 @@ export default function ScoresPage() {
     });
   }, []);
 
+  // Portrait-only: tapping a game box shows every user's pick for that game
+  const [selectedGameID, setSelectedGameID] = useState(null);
+
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
 
@@ -279,7 +282,7 @@ export default function ScoresPage() {
       .toUpperCase()
       .replace(",", "");
   const formatGameTimeET = (iso) =>
-    `${new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })} ET`;
+    new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 
   // ---------- FIX: reserve a status row height in every header cell ----------
   const HeaderCompact = ({ g, showScores }) => {
@@ -552,7 +555,11 @@ export default function ScoresPage() {
                             return (
                               <div
                                 key={eventID}
-                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 ${bgColor}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGameID(eventID);
+                                }}
+                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 cursor-pointer active:opacity-80 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
                                   <div className="flex flex-col items-center shrink-0">
@@ -601,6 +608,75 @@ export default function ScoresPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Portrait-only: all picks for one game, opened by tapping a game box */}
+      {selectedGameID && (() => {
+        const g = eventMap[selectedGameID];
+        if (!g) return null;
+        const isDecided = g.status === "post";
+        const isLiveGame = g.status === "in";
+        const showScore = isDecided || isLiveGame;
+
+        return (
+          <div
+            className="sm:hidden fixed inset-0 z-50 flex items-end bg-black/50"
+            onClick={() => setSelectedGameID(null)}
+          >
+            <div
+              className="w-full max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="font-bold text-lg">
+                    {g.away?.abbr} {showScore && g.awayScore != null ? g.awayScore : ""} @ {g.home?.abbr}{" "}
+                    {showScore && g.homeScore != null ? g.homeScore : ""}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {isLiveGame
+                      ? `${g.period ? `Q${g.period} ` : ""}${g.displayClock || ""}`
+                      : isDecided
+                      ? "Final"
+                      : g.date
+                      ? `${formatGameDate(g.date)} ${formatGameTimeET(g.date)}`
+                      : ""}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedGameID(null)}
+                  className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {submissions.map((entry) => {
+                  const pickTeam = entry.picks.find((p) => p.eventID === selectedGameID)?.teamName;
+                  const pickedHome = g.home?.abbr === pickTeam || g.home?.short === pickTeam;
+                  const label = pickTeam ? (pickedHome ? g.home?.abbr : g.away?.abbr) : "—";
+                  const correct = winners[selectedGameID] === pickTeam;
+                  const rowColor = !isDecided
+                    ? "bg-slate-100 dark:bg-zinc-800"
+                    : correct
+                    ? "bg-green-200 dark:bg-green-300 text-gray-900"
+                    : "bg-red-200 dark:bg-red-300 text-gray-900";
+
+                  return (
+                    <div
+                      key={entry.uid}
+                      className={`flex items-center justify-between rounded-md px-3 py-2 ${rowColor}`}
+                    >
+                      <span className="font-semibold">{truncate14(entry.displayName)}</span>
+                      <span className="font-mono font-bold">{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
