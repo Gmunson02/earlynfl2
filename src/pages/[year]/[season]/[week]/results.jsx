@@ -194,6 +194,36 @@ export default function ScoresPage() {
     [uniqueEventIDs, eventMap]
   );
 
+  // Cheap O(users) math-elimination/clinch check, no combinatorics: a
+  // user's guaranteed floor is their current wins (remaining games can only
+  // help), and their ceiling is current wins + every remaining game. Works
+  // regardless of how many games remain, so it can run even early in the
+  // week when the full brute-force scenario below is gated off.
+  const computeQuickStatus = useCallback(
+    (targetUid) => {
+      const target = submissions.find((s) => s.uid === targetUid);
+      if (!target) return null;
+      const remainingCount = remainingEventIDs.length;
+      const targetFloor = target.winnerCount;
+      const targetCeiling = target.winnerCount + remainingCount;
+
+      let maxOtherFloor = -Infinity;
+      let maxOtherCeiling = -Infinity;
+      for (const s of submissions) {
+        if (s.uid === targetUid) continue;
+        if (s.winnerCount > maxOtherFloor) maxOtherFloor = s.winnerCount;
+        const ceiling = s.winnerCount + remainingCount;
+        if (ceiling > maxOtherCeiling) maxOtherCeiling = ceiling;
+      }
+
+      if (maxOtherFloor === -Infinity) return "locked"; // sole participant
+      if (targetFloor > maxOtherCeiling) return "locked";
+      if (targetCeiling < maxOtherFloor) return "eliminated";
+      return null; // still alive, not clinched — needs the detailed breakdown
+    },
+    [submissions, remainingEventIDs]
+  );
+
   // Enumerates every possible outcome of the remaining games to find which
   // ones let this user finish 1st (or tie for it), then summarizes the
   // outcomes that are required in every winning scenario. Capped at
@@ -505,7 +535,12 @@ export default function ScoresPage() {
                     <tr className={rowBg}>
                       <td colSpan={3} className={`${borderClass} p-2`}>
                         {(() => {
-                          if (remainingEventIDs.length > MAX_SCENARIO_GAMES) {
+                          if (remainingEventIDs.length === 0) return null;
+
+                          // Cheap check first — works no matter how many games remain
+                          const quickStatus = computeQuickStatus(entry.uid);
+
+                          if (quickStatus === null && remainingEventIDs.length > MAX_SCENARIO_GAMES) {
                             return (
                               <div className="mb-2 rounded-md bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 px-2 py-1.5 text-xs">
                                 Scenarios unlock once {MAX_SCENARIO_GAMES} or fewer games remain this week.
@@ -513,23 +548,29 @@ export default function ScoresPage() {
                             );
                           }
 
-                          const scenario = buildScenario(entry.uid);
-                          if (!scenario) return null;
-
                           let message;
-                          if (scenario.status === "locked") {
+                          if (quickStatus === "locked") {
                             message = "🔒 Locked in for 1st place this week!";
-                          } else if (scenario.status === "eliminated") {
+                          } else if (quickStatus === "eliminated") {
                             message = "Eliminated from 1st place this week.";
                           } else {
-                            const parts = scenario.necessary.map((n) => `${n.needAbbr} beats ${n.overAbbr}`);
-                            if (parts.length === 0) {
-                              message =
-                                "Path to 1st depends on how the remaining games go — several combinations could work in your favor.";
-                            } else if (scenario.fullyDetermined) {
-                              message = `Needs: ${parts.join(", ")} to finish 1st.`;
+                            const scenario = buildScenario(entry.uid);
+                            if (!scenario) return null;
+
+                            if (scenario.status === "locked") {
+                              message = "🔒 Locked in for 1st place this week!";
+                            } else if (scenario.status === "eliminated") {
+                              message = "Eliminated from 1st place this week.";
                             } else {
-                              message = `Needs: ${parts.join(", ")} — plus the right combination of the other remaining game(s).`;
+                              const parts = scenario.necessary.map((n) => `${n.needAbbr} beats ${n.overAbbr}`);
+                              if (parts.length === 0) {
+                                message =
+                                  "Path to 1st depends on how the remaining games go — several combinations could work in your favor.";
+                              } else if (scenario.fullyDetermined) {
+                                message = `Needs: ${parts.join(", ")} to finish 1st.`;
+                              } else {
+                                message = `Needs: ${parts.join(", ")} — plus the right combination of the other remaining game(s).`;
+                              }
                             }
                           }
 
