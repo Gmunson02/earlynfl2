@@ -11,6 +11,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import toast from "react-hot-toast";
 
 export default function GuestPage() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function GuestPage() {
       router.push("/dashboard");
     } catch (err) {
       console.error("Failed to save guest info", err);
-      alert("Something went wrong. Try again.");
+      toast.error("Something went wrong. Try again.");
     } finally {
       setSaving(false);
     }
@@ -85,7 +86,7 @@ export default function GuestPage() {
       router.push("/dashboard");
     } catch (err) {
       console.error("Google sign-up failed:", err);
-      alert("Google sign-up failed. You can still continue as a guest below.");
+      toast.error("Google sign-up failed. You can still continue as a guest below.");
     } finally {
       setGoogleBusy(false);
     }

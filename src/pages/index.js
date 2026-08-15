@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
+import toast from "react-hot-toast";
 
 export default function HomePage() {
   const router = useRouter();
@@ -73,7 +74,7 @@ export default function HomePage() {
         router.push(`/signin?linkEmail=${encodeURIComponent(err.customData?.email || "")}`);
       } else {
         console.error("Google sign-in failed:", err);
-        alert("Google sign-in failed");
+        toast.error("Google sign-in failed");
       }
     } finally {
       setLoading(false);
