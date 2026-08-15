@@ -619,11 +619,11 @@ export default function ScoresPage() {
         <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
-              <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}>
+              <th className={`w-[48px] px-2 py-1 text-center font-bold ${borderClass}`}>Rank</th>
+              <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "0.5rem" }}>
                 User
               </th>
               <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
-              <th className={`w-[72px] px-2 py-1 text-center font-bold ${borderClass}`}>TB</th>
             </tr>
           </thead>
 
@@ -639,9 +639,12 @@ export default function ScoresPage() {
                     className={`${rowBg} cursor-pointer`}
                     onClick={() => toggleExpanded(entry.uid)}
                   >
+                    <td className={`w-[48px] px-2 py-1 text-center font-bold ${rowBg} ${borderClass}`}>
+                      {entry.rank}
+                    </td>
                     <td
                       className={`py-1 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
-                      style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))" }}
+                      style={{ paddingLeft: "0.5rem" }}
                       title={entry.displayName || ""}
                     >
                       <span className="inline-flex items-center gap-1">
@@ -651,11 +654,6 @@ export default function ScoresPage() {
                     </td>
                     <td className={`w-[56px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
                       {entry.winnerCount}
-                    </td>
-                    <td className={`w-[72px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {entry.tieBreaker || "—"}
-                      </span>
                     </td>
                   </tr>
 
