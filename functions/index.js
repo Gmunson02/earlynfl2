@@ -1,6 +1,9 @@
 // Firebase Functions v2 (Node 20)
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+
+const ADMIN_KEY = defineSecret("ADMIN_KEY");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
@@ -197,13 +200,17 @@ exports.computeWeeklyWinners = onSchedule(
 // ---------- HTTP trigger: public + CORS ----------
 // Defaults to 2025 • preseason • week 2 if no params are provided.
 exports.computeWeeklyWinnersNow = onRequest(
-  { region: "us-central1", invoker: "public" },
+  { region: "us-central1", invoker: "public", secrets: [ADMIN_KEY] },
   async (req, res) => {
     // CORS
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") return res.status(204).send("");
+
+    if (req.query.key !== ADMIN_KEY.value()) {
+      return res.status(401).json({ ok: false, error: "Unauthorized" });
+    }
 
     try {
       const season = (req.query.season ? String(req.query.season) : DEFAULT_SEASON).toLowerCase();
