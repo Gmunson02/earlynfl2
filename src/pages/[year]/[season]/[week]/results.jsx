@@ -170,7 +170,14 @@ export default function ScoresPage() {
     return { total, post, live, pre };
   }, [uniqueEventIDs, eventMap]);
 
+  const scrollToMe = useCallback(() => {
+    const el = myUid ? rowRefs.current.get(myUid) : null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }, [myUid]);
+
   if (loading && !lastUpdated) return <div className="p-6 text-center">Loading...</div>;
+
+  const myRowVisible = myUid && submissions.some((s) => s.uid === myUid);
 
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
@@ -209,13 +216,6 @@ export default function ScoresPage() {
     );
   };
   // --------------------------------------------------------------------------
-
-  const scrollToMe = useCallback(() => {
-    const el = myUid ? rowRefs.current.get(myUid) : null;
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-  }, [myUid]);
-
-  const myRowVisible = myUid && submissions.some((s) => s.uid === myUid);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
