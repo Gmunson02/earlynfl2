@@ -315,8 +315,14 @@ export default function GameCenter() {
   onClick={() =>
     setSelectedGame({
       eventId: event.id,
-      awayTeam: { abbr: away?.team?.abbreviation || away?.team?.shortDisplayName, logo: away?.team?.logo },
-      homeTeam: { abbr: home?.team?.abbreviation || home?.team?.shortDisplayName, logo: home?.team?.logo },
+      awayTeam: { id: away?.team?.id, abbr: away?.team?.abbreviation || away?.team?.shortDisplayName, logo: away?.team?.logo },
+      homeTeam: { id: home?.team?.id, abbr: home?.team?.abbreviation || home?.team?.shortDisplayName, logo: home?.team?.logo },
+      isLive,
+      period: status?.period,
+      clock: status?.displayClock,
+      possessionTeamId: possId,
+      downDistanceText: sit.shortDownDistanceText || sit.downDistanceText,
+      yardLineText: sit.yardLineText,
     })
   }
   role="button"
@@ -453,6 +459,12 @@ export default function GameCenter() {
           eventId={selectedGame.eventId}
           awayTeam={selectedGame.awayTeam}
           homeTeam={selectedGame.homeTeam}
+          isLive={selectedGame.isLive}
+          period={selectedGame.period}
+          clock={selectedGame.clock}
+          possessionTeamId={selectedGame.possessionTeamId}
+          downDistanceText={selectedGame.downDistanceText}
+          yardLineText={selectedGame.yardLineText}
           onClose={() => setSelectedGame(null)}
         />
       )}

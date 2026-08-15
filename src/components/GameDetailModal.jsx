@@ -8,10 +8,30 @@ const HEADLINE_STATS = [
   { name: "possessionTime", label: "Possession" },
 ];
 
-export default function GameDetailModal({ eventId, awayTeam, homeTeam, onClose }) {
+export default function GameDetailModal({
+  eventId,
+  awayTeam,
+  homeTeam,
+  onClose,
+  isLive,
+  period,
+  clock,
+  possessionTeamId,
+  downDistanceText,
+  yardLineText,
+}) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // Don't let the page scroll behind the modal
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +74,11 @@ export default function GameDetailModal({ eventId, awayTeam, homeTeam, onClose }
         <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700 px-4 py-3 flex items-center justify-between">
           <h2 className="font-bold">
             {awayTeam.abbr} @ {homeTeam.abbr}
+            {isLive && (
+              <span className="ml-2 font-medium text-sm text-rose-500">
+                Q{period} {clock}
+              </span>
+            )}
           </h2>
           <button onClick={onClose} aria-label="Close">
             <X size={20} />
@@ -66,6 +91,15 @@ export default function GameDetailModal({ eventId, awayTeam, homeTeam, onClose }
           <p className="p-6 text-center text-zinc-500">Couldn&apos;t load game details.</p>
         ) : (
           <div className="p-4 space-y-5">
+            {/* Ball spot: down & distance, yard line */}
+            {isLive && (downDistanceText || yardLineText) && (
+              <div className="text-center text-sm font-semibold text-zinc-700 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 rounded-lg py-2">
+                {downDistanceText}
+                {downDistanceText && yardLineText ? " at " : ""}
+                {yardLineText}
+              </div>
+            )}
+
             {/* Linescore */}
             {(awayComp?.linescores?.length || homeComp?.linescores?.length) ? (
               <div className="overflow-x-auto">
@@ -90,6 +124,11 @@ export default function GameDetailModal({ eventId, awayTeam, homeTeam, onClose }
                         <td className="text-left py-1 font-semibold flex items-center gap-1.5">
                           {team.logo && <Image src={team.logo} alt={team.abbr} width={18} height={18} />}
                           {team.abbr}
+                          {isLive && possessionTeamId && String(team.id) === String(possessionTeamId) && (
+                            <span className="text-xs" title="Has possession">
+                              🏈
+                            </span>
+                          )}
                         </td>
                         {(comp?.linescores || []).map((ls, i) => (
                           <td key={i} className="py-1">
