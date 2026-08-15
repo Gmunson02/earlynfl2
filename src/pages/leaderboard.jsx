@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
           {loading ? (
             <p className="text-zinc-500">Loading…</p>
           ) : !latestWeekly ? (
-            <p className="text-zinc-500">No computed week yet.</p>
+            <p className="text-zinc-500">Results to follow Week 1 of the regular season.</p>
           ) : latestWinners.length ? (
             <div className="space-y-2">
               {latestWinners.map((w) => (
@@ -209,7 +209,7 @@ export default function LeaderboardPage() {
           {loading ? (
             <p className="text-zinc-500">Loading…</p>
           ) : !rows.length ? (
-            <p className="text-zinc-500">No players yet.</p>
+            <p className="text-zinc-500">Results to follow Week 1 of the regular season.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-max w-full text-sm">
@@ -283,10 +283,7 @@ export default function LeaderboardPage() {
             <summary className="text-xl font-bold cursor-pointer select-none">
               Last Season&apos;s Standings ({LAST_YEAR})
             </summary>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 mb-3">
-              De-duplicated by display name — guest accounts from {LAST_YEAR} are merged into one row per name.
-            </p>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mt-3">
               <table className="min-w-max w-full text-sm">
                 <thead className="bg-zinc-700 text-white">
                   <tr>
