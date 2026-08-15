@@ -6,7 +6,7 @@ export default function Document() {
       <Head>
         {/* PWA */}
         <link rel="manifest" href="/manifest.webmanifest" />
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="theme-color" content="#4f46e5" />
 
         {/* iOS */}
         <meta name="apple-mobile-web-app-capable" content="yes" />

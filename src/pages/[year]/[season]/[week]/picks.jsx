@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -71,6 +71,9 @@ export default function PicksPage({ year, week, season, matchups }) {
   const [lastEditedAt, setLastEditedAt] = useState(null); // NEW
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const hasHydrated = useRef(false);
+  const autoSaveTimer = useRef(null);
 
   // NEW: controls whether we are still before the earliest game’s kickoff
   const [isBeforeKickoff, setIsBeforeKickoff] = useState(true);
@@ -104,6 +107,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   const picksOpen = isBeforeKickoff || isPreseason;
 
   useEffect(() => {
+    hasHydrated.current = false;
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
@@ -118,7 +122,7 @@ export default function PicksPage({ year, week, season, matchups }) {
           const pickData = weekSnap.data();
           setPicks(pickData);
           setTieBreaker(pickData.tieBreaker || "");
-          setSubmitted(pickData.locked ?? true);
+          setSubmitted(pickData.locked === true);
           setSubmittedAt(pickData.submittedAt || null);
           setLastEditedAt(pickData.lastEditedAt || pickData.submittedAt || null); // prefer lastEditedAt
         } else {
@@ -135,9 +139,47 @@ export default function PicksPage({ year, week, season, matchups }) {
         setSubmittedAt(null);
         setLastEditedAt(null);
       }
+      // Allow auto-save to run only after this initial load finishes,
+      // so restoring existing picks doesn't immediately trigger a save.
+      hasHydrated.current = true;
     });
     return () => unsubscribe();
   }, [todayKey]);
+
+  // Auto-save picks + tiebreaker as the user goes, so nothing is lost if
+  // they get interrupted before hitting Submit. Final Submit still locks it.
+  useEffect(() => {
+    if (!hasHydrated.current || !user || submitted || !picksOpen) return;
+    if (Object.keys(picks).length === 0 && !tieBreaker) return;
+
+    setAutoSaveStatus("saving");
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        const ref = doc(db, "picks", user.uid, "weeks", todayKey);
+        const now = new Date().toISOString();
+        await setDoc(
+          ref,
+          {
+            ...picks,
+            tieBreaker,
+            displayName: userProfile?.displayName || "",
+            weekKey: todayKey,
+            lastEditedAt: now,
+          },
+          { merge: true }
+        );
+        setLastEditedAt(now);
+        setAutoSaveStatus("saved");
+      } catch (err) {
+        console.error("Auto-save failed", err);
+        setAutoSaveStatus("error");
+      }
+    }, 800);
+
+    return () => clearTimeout(autoSaveTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picks, tieBreaker]);
 
   const handlePick = (eventId, teamName) => {
     if (submitted) return;
@@ -367,6 +409,17 @@ export default function PicksPage({ year, week, season, matchups }) {
           placeholder="Enter total combined score"
           disabled={submitted}
         />
+        {!submitted && picksOpen && (
+          <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+            {autoSaveStatus === "saving"
+              ? "Saving…"
+              : autoSaveStatus === "saved"
+              ? "✓ Your progress is saved"
+              : autoSaveStatus === "error"
+              ? "⚠ Couldn't save — check your connection"
+              : "Your picks save automatically as you go"}
+          </p>
+        )}
       </div>
 
       <div className="mt-10 text-center">

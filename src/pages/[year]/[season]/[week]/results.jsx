@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
+import { LocateFixed } from "lucide-react";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -29,13 +30,19 @@ export default function ScoresPage() {
   const [reloadTick, setReloadTick] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [myUid, setMyUid] = useState(null);
+
+  const rowRefs = useRef(new Map());
 
   const keyNew = `${year}-${season}-W${week}`;
 
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, () => setAuthReady(true));
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setAuthReady(true);
+      setMyUid(u?.uid || null);
+    });
     return unsub;
   }, []);
 
@@ -94,6 +101,8 @@ export default function ScoresPage() {
         tempMap[event.id] = {
           date: event.date,
           status: comp?.status?.type?.state,
+          period: comp?.status?.period,
+          displayClock: comp?.status?.displayClock,
           home: {
             abbr: home?.abbreviation || home?.shortDisplayName || "—",
             logo: home?.logo,
@@ -169,10 +178,11 @@ export default function ScoresPage() {
   // ---------- FIX: reserve a status row height in every header cell ----------
   const HeaderCompact = ({ g, showScores }) => {
     const live = g?.status === "in";
+    const clock = live && g?.displayClock ? `${g.period ? `Q${g.period} ` : ""}${g.displayClock}` : "";
     return (
       <div className="flex flex-col items-center leading-tight">
-        {/* Status row: constant height; shows LIVE or an empty spacer */}
-        <div className="mb-0.5 flex h-4 md:h-5 items-center justify-center">
+        {/* Status row: constant height; shows LIVE + clock or an empty spacer */}
+        <div className="mb-0.5 flex h-4 md:h-5 items-center justify-center gap-1">
           <span
             className={`text-[10px] md:text-[11px] font-semibold tracking-wide ${
               live ? "text-rose-400" : "opacity-0"
@@ -180,6 +190,9 @@ export default function ScoresPage() {
           >
             LIVE
           </span>
+          {live && clock && (
+            <span className="text-[9px] md:text-[10px] font-mono text-rose-300">{clock}</span>
+          )}
         </div>
 
         {/* Two compact rows: home and away with optional scores */}
@@ -196,6 +209,13 @@ export default function ScoresPage() {
     );
   };
   // --------------------------------------------------------------------------
+
+  const scrollToMe = useCallback(() => {
+    const el = myUid ? rowRefs.current.get(myUid) : null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }, [myUid]);
+
+  const myRowVisible = myUid && submissions.some((s) => s.uid === myUid);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
@@ -257,9 +277,9 @@ export default function ScoresPage() {
       <div className="max-w-8xl mx-auto overflow-x-auto pb-28">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-collapse ${borderClass}`}>
-          <thead className="bg-slate-800 text-white shadow-sm">
+          <thead className="bg-slate-800 text-white shadow-sm sticky top-0 z-20">
             <tr>
-              <th className={`${W_USER} px-2 py-1 sticky left-0 z-10 bg-slate-800 font-bold text-left ${borderClass}`}>
+              <th className={`${W_USER} px-2 py-1 sticky left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}>
                 User
               </th>
               <th className={`${W_WINS} px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
@@ -280,17 +300,29 @@ export default function ScoresPage() {
 
           <tbody>
             {submissions.map((entry, index) => {
-              const rowBg =
-                index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+              const isMe = entry.uid === myUid;
+              const rowBg = isMe
+                ? "bg-amber-50 dark:bg-amber-900/30"
+                : index % 2 === 0
+                ? "bg-white dark:bg-zinc-900"
+                : "bg-gray-50 dark:bg-zinc-800";
               const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
 
               return (
-                <tr key={entry.uid} className={rowBg}>
+                <tr
+                  key={entry.uid}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(entry.uid, el);
+                    else rowRefs.current.delete(entry.uid);
+                  }}
+                  className={rowBg}
+                >
                   <td
                     className={`${W_USER} px-2 py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
                     title={entry.displayName || ""}
                   >
                     {truncate14(entry.displayName)}
+                    {isMe && " 👋"}
                   </td>
 
                   <td className={`${W_WINS} px-2 py-1 text-center ${borderClass}`}>
@@ -340,6 +372,16 @@ export default function ScoresPage() {
           </tbody>
         </table>
       </div>
+
+      {myRowVisible && (
+        <button
+          onClick={scrollToMe}
+          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-indigo-600 text-white font-semibold shadow-lg hover:bg-indigo-700"
+        >
+          <LocateFixed size={18} />
+          Find Me
+        </button>
+      )}
     </div>
   );
 }

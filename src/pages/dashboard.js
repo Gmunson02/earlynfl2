@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import useRequireProfile from "../hooks/useRequireProfile";
 import useScheduleWeek from "../hooks/useScheduleWeek";
 import { loadSeasonStandingsByName } from "../lib/seasonStandings";
+import InstallPrompt from "../components/InstallPrompt";
 
 const LAST_SEASON_YEAR = 2025;
 const LAST_SEASON_TYPE = "reg";
@@ -201,6 +202,8 @@ export default function Dashboard() {
         <header className="mb-4">
           <h1 className="text-3xl font-extrabold">Hi, {userName}!</h1>
         </header>
+
+        <InstallPrompt />
 
         <motion.section
           initial={{ opacity: 0, y: 10 }}
