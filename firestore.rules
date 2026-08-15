@@ -43,6 +43,16 @@ service cloud.firestore {
     }
 
     // ----------------------------
+    // Collection-group read access for "weeks" subcollections.
+    // Nested match rules above only apply to direct/scoped queries;
+    // the results page runs a collectionGroup("weeks") query, which
+    // Firestore requires this wildcard rule to permit.
+    // ----------------------------
+    match /{path=**}/weeks/{weekKey} {
+      allow read: if request.auth != null;
+    }
+
+    // ----------------------------
     // Lock times for each week, admin-only write
     // ----------------------------
     match /week_locks/{weekKey} {
