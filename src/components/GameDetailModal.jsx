@@ -65,7 +65,8 @@ export default function GameDetailModal({
     return team?.statistics?.find((s) => s.name === statName)?.displayValue ?? "—";
   };
 
-  const scoringPlays = Array.isArray(summary?.scoringPlays) ? summary.scoringPlays : [];
+  // Most recent score first
+  const scoringPlays = Array.isArray(summary?.scoringPlays) ? [...summary.scoringPlays].reverse() : [];
 
   const possessingAbbr =
     possessionTeamId && String(possessionTeamId) === String(awayTeam.id)

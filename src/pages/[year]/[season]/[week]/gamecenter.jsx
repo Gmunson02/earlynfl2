@@ -456,12 +456,9 @@ export default function GameCenter() {
                           </span>
                         </div>
 
-                        {/* Right: down & distance */}
+                        {/* Right: down & distance (yard spot is detail-view only) */}
                         <div className="flex justify-end font-medium">
-                          <span>
-                            {downText}
-                            {spotText ? ` @ ${spotText}` : ""}
-                          </span>
+                          <span>{downText}</span>
                         </div>
                       </div>
                     ) : !isPost ? (
