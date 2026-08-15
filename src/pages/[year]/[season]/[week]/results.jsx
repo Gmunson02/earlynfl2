@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
+import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
 import { LocateFixed } from "lucide-react";
@@ -63,20 +63,16 @@ export default function ScoresPage() {
       const seasontype = TYPE_MAP[season] ?? 2;
       const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
-      const [weeksSnap, usersSnap, espnData] = await Promise.all([
+      const [weeksSnap, espnData] = await Promise.all([
         getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
-        getDocs(collection(db, "users")),
         fetch(apiUrl).then((r) => r.json()),
       ]);
 
       if (cancelled) return;
 
-      const usersMap = {};
-      usersSnap.forEach((d) => {
-        const u = d.data();
-        usersMap[d.id] = u?.displayName || "";
-      });
-
+      // Each week doc already stores the display name at submission time —
+      // avoids a full "users" collection scan on every load/poll. Trade-off:
+      // a name change after submitting won't retroactively update old weeks.
       const picks = [];
       for (const docSnap of weeksSnap.docs) {
         const userData = docSnap.data();
@@ -88,7 +84,7 @@ export default function ScoresPage() {
 
         picks.push({
           uid,
-          displayName: usersMap[uid] || userData.displayName || "Unknown",
+          displayName: userData.displayName || "Unknown",
           picks: entries,
           tieBreaker: userData.tieBreaker || "",
         });

@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import Image from "next/image";
 import { Unlock, Info } from "lucide-react";
+import { getScoreboard } from "../../../../lib/espnScoreboard";
 
 export async function getServerSideProps(context) {
   const { year, week, season } = context.query;
@@ -12,10 +13,7 @@ export async function getServerSideProps(context) {
   const typeMap = { pre: 1, reg: 2, post: 3 };
   const seasontype = typeMap[season] ?? 2; // default to regular if missing
 
-  const apiUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
-
-  const res = await fetch(apiUrl);
-  const data = await res.json();
+  const { data } = await getScoreboard({ year, week, seasontype });
 
   const events = Array.isArray(data?.events) ? data.events : [];
 
