@@ -331,9 +331,9 @@ export default function ScoresPage() {
         </h1>
 
         <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {lastUpdated ? `Last Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
-          {" • "}
           {submissions.length} total participants
+          {" • "}
+          {lastUpdated ? `Last Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
