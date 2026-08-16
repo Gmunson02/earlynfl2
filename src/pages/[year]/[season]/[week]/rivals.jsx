@@ -5,13 +5,13 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, collectionGroup, getDocs, orderBy, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
-import { Swords } from "lucide-react";
+import { ArrowLeftRight } from "lucide-react";
 import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const REFRESH_INTERVAL = 30_000;
 
-export default function RivalsPage() {
+export default function ComparePage() {
   const router = useRouter();
   const { year, week, season } = router.query;
 
@@ -211,13 +211,13 @@ export default function RivalsPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
       <Head>
-        <title>Rivals • Week {week}</title>
+        <title>Compare • Week {week}</title>
       </Head>
 
       <section className="max-w-4xl mx-auto mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-extrabold tracking-tight">
-            <Swords size={30} /> Rivals
+            <ArrowLeftRight size={30} /> Compare
           </h1>
           <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Week {week} head-to-head</div>
         </div>
@@ -288,7 +288,7 @@ export default function RivalsPage() {
                   Rank #{userA.rank}, {userA.winnerCount} wins
                 </div>
               </div>
-              <Swords size={18} className="opacity-60 shrink-0 mx-2" />
+              <ArrowLeftRight size={18} className="opacity-60 shrink-0 mx-2" />
               <div className="text-right">
                 <div className="font-bold">{truncate14(userB.displayName)}</div>
                 <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">

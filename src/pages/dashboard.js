@@ -13,7 +13,7 @@ import {
   Settings,
   PlayCircle,
   ShieldCheck,
-  Swords,
+  ArrowLeftRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import useRequireProfile from "../hooks/useRequireProfile";
@@ -303,8 +303,8 @@ export default function Dashboard() {
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "rivals"))}
-            icon={Swords}
-            label="Rivals"
+            icon={ArrowLeftRight}
+            label="Compare"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
           <ActionButton

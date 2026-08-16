@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, Swords, Settings } from "lucide-react";
+import { Home, List, Trophy, ArrowLeftRight, Settings } from "lucide-react";
 import { useMemo } from "react";
 import useScheduleWeek from "../hooks/useScheduleWeek";
 
@@ -44,7 +44,7 @@ export default function BottomNav() {
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
-    { label: "Rivals", href: rivalsHref, icon: Swords, ready: !!rivalsHref },
+    { label: "Compare", href: rivalsHref, icon: ArrowLeftRight, ready: !!rivalsHref },
     { label: "Settings", href: settingsHref, icon: Settings, ready: true },
   ];
 
