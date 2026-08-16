@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collectionGroup, getDocs, query, where } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, orderBy, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
 import { Swords } from "lucide-react";
@@ -22,6 +22,7 @@ export default function RivalsPage() {
   const [uidA, setUidA] = useState(null);
   const [uidB, setUidB] = useState(null);
   const [showAllGames, setShowAllGames] = useState(false);
+  const [weeksList, setWeeksList] = useState([]);
 
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
@@ -34,6 +35,21 @@ export default function RivalsPage() {
     });
     return unsub;
   }, []);
+
+  // Full list of weeks for the picker (public read, no auth wait needed)
+  useEffect(() => {
+    (async () => {
+      const snap = await getDocs(query(collection(db, "schedules", "nfl-2026", "weeks"), orderBy("order", "asc")));
+      setWeeksList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    })();
+  }, []);
+
+  // Reset player selections when the week changes so we don't carry over
+  // uids from a week's participant list into a different week's list
+  useEffect(() => {
+    setUidA(null);
+    setUidB(null);
+  }, [keyNew]);
 
   useEffect(() => {
     if (!year || !week || !season || !authReady) return;
@@ -196,11 +212,33 @@ export default function RivalsPage() {
         <title>Rivals • Week {week}</title>
       </Head>
 
-      <section className="max-w-4xl mx-auto mb-6">
-        <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-extrabold tracking-tight">
-          <Swords size={30} /> Rivals
-        </h1>
-        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Week {week} head-to-head</div>
+      <section className="max-w-4xl mx-auto mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-extrabold tracking-tight">
+            <Swords size={30} /> Rivals
+          </h1>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Week {week} head-to-head</div>
+        </div>
+
+        {weeksList.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-500 dark:text-gray-400">Week</label>
+            <select
+              value={weeksList.find((w) => String(w.seasonYear) === String(year) && w.seasonType === season && String(w.value) === String(week))?.id || ""}
+              onChange={(e) => {
+                const w = weeksList.find((x) => x.id === e.target.value);
+                if (w) router.push(`/${w.seasonYear}/${w.seasonType}/${w.value}/rivals`);
+              }}
+              className="mt-1 block rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
+            >
+              {weeksList.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label || w.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </section>
 
       <section className="max-w-4xl mx-auto mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
