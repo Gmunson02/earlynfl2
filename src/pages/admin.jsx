@@ -19,8 +19,8 @@ import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronR
 
 const SEASON_ID = "nfl-2026";
 const SITE_URL = "https://www.earlynfl.com";
-const INVITE_SUBJECT = "It's a new NFL season — time to sign back in!";
-const INVITE_BODY = `Hey! A new NFL season means a fresh start — all accounts were reset, so you'll need to sign up again.\n\nHead to ${SITE_URL} and create an account with Google or your email (skip the guest option this time) so your picks and stats stick around all season.\n\nSee you there!`;
+const INVITE_SUBJECT = "2026 Season of Early NFL Weekly Pick Em";
+const INVITE_BODY = `It's time for the 2026 season of Early NFL Weekly Pick Em. To get started, simply head to ${SITE_URL} and create a new account.\n\nIf you have any questions, reach out to David directly at dtearly@gmail.com.\n\nSee you there!`;
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const SYSTEM_FIELDS = ["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey", "adminUnlockUntil"];
 
