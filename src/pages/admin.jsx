@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import useIsAdmin from "../hooks/useIsAdmin";
-import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X } from "lucide-react";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
@@ -267,6 +267,16 @@ export default function AdminPage() {
   const [submittedUids, setSubmittedUids] = useState(new Set());
   const [editingUser, setEditingUser] = useState(null);
   const [renamingUser, setRenamingUser] = useState(null);
+  const [expandedUids, setExpandedUids] = useState(new Set());
+
+  const toggleExpanded = useCallback((uid) => {
+    setExpandedUids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (adminStatus === "not-admin") router.replace("/dashboard");
@@ -387,7 +397,7 @@ export default function AdminPage() {
         {loading ? (
           <p className="text-zinc-500">Loading…</p>
         ) : (
-          <div className="overflow-x-auto bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700">
+          <div className="hidden sm:block overflow-x-auto bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700">
             <table className="min-w-max w-full text-sm">
               <thead className="bg-zinc-700 text-white">
                 <tr>
@@ -496,6 +506,141 @@ export default function AdminPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && (
+          <div className="sm:hidden flex flex-col gap-2">
+            {users.map((u) => {
+              const l = ledger[u.uid] || {};
+              const submitted = submittedUids.has(u.uid);
+              const startingBalance = Number(l.startingBalance) || 0;
+              const duesOwed = Number(l.duesOwed) || 0;
+              const winnings = Number(l.winnings) || 0;
+              const currentBalance = startingBalance - duesOwed + winnings;
+              const isOpen = expandedUids.has(u.uid);
+
+              return (
+                <div
+                  key={u.uid}
+                  className="bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleExpanded(u.uid)}
+                    className="w-full flex items-center justify-between px-4 py-3"
+                  >
+                    <span className="flex items-center gap-2 font-semibold">
+                      {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                      {u.displayName || "—"}
+                      {u.isGuest && (
+                        <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
+                          guest
+                        </span>
+                      )}
+                    </span>
+                    {submitted ? (
+                      <CheckCircle2 className="text-emerald-500" size={18} />
+                    ) : (
+                      <Circle className="text-zinc-300 dark:text-zinc-600" size={18} />
+                    )}
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-zinc-200 dark:border-zinc-700 pt-3">
+                      <div className="text-sm text-zinc-500 dark:text-zinc-400">{u.email || "—"}</div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                          Full Name
+                        </label>
+                        <EditableCell
+                          value={l.fullName}
+                          width="w-full"
+                          onSave={(v) => saveLedgerField(u.uid, "fullName", v)}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            Starting Balance
+                          </label>
+                          <EditableCell
+                            type="number"
+                            value={l.startingBalance}
+                            width="w-full"
+                            onSave={(v) => saveLedgerField(u.uid, "startingBalance", Number(v) || 0)}
+                          />
+                        </div>
+                        <div>
+                          <label
+                            className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1"
+                            title="$1/week × 18 weeks = $18 for a full season"
+                          >
+                            Dues Owed
+                          </label>
+                          <EditableCell
+                            type="number"
+                            value={l.duesOwed}
+                            width="w-full"
+                            onSave={(v) => saveLedgerField(u.uid, "duesOwed", Number(v) || 0)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            2026 Winnings
+                          </label>
+                          <EditableCell
+                            type="number"
+                            value={l.winnings}
+                            width="w-full"
+                            onSave={(v) => saveLedgerField(u.uid, "winnings", Number(v) || 0)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            Current Balance
+                          </label>
+                          <div
+                            className={`px-2 py-1.5 text-sm font-bold rounded border border-transparent ${
+                              currentBalance > 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : currentBalance < 0
+                                ? "text-red-600 dark:text-red-400"
+                                : ""
+                            }`}
+                          >
+                            ${currentBalance.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => unlockUser(u.uid, 30)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        >
+                          <Unlock size={15} /> Unlock
+                        </button>
+                        <button
+                          onClick={() => setEditingUser(u)}
+                          disabled={!selectedWeek}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+                        >
+                          <Pencil size={15} /> Picks
+                        </button>
+                        <button
+                          onClick={() => setRenamingUser(u)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        >
+                          <UserPen size={15} /> Rename
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
