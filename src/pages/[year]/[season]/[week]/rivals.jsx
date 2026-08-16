@@ -204,11 +204,13 @@ export default function RivalsPage() {
             onChange={(e) => setUidA(e.target.value)}
             className="mt-1 w-full rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
           >
-            {sortedByRank.map((s) => (
-              <option key={s.uid} value={s.uid}>
-                #{s.rank} {s.displayName} ({s.winnerCount} wins)
-              </option>
-            ))}
+            {sortedByRank
+              .filter((s) => s.uid !== uidB)
+              .map((s) => (
+                <option key={s.uid} value={s.uid}>
+                  #{s.rank} {s.displayName} ({s.winnerCount} wins)
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -218,11 +220,13 @@ export default function RivalsPage() {
             onChange={(e) => setUidB(e.target.value)}
             className="mt-1 w-full rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
           >
-            {sortedByRank.map((s) => (
-              <option key={s.uid} value={s.uid}>
-                #{s.rank} {s.displayName} ({s.winnerCount} wins)
-              </option>
-            ))}
+            {sortedByRank
+              .filter((s) => s.uid !== uidA)
+              .map((s) => (
+                <option key={s.uid} value={s.uid}>
+                  #{s.rank} {s.displayName} ({s.winnerCount} wins)
+                </option>
+              ))}
           </select>
         </div>
       </section>
@@ -278,6 +282,11 @@ export default function RivalsPage() {
             </section>
           )}
 
+          <section className="max-w-4xl mx-auto sticky top-0 z-10 grid grid-cols-2 mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700 divide-x divide-gray-300 dark:divide-zinc-600 bg-white dark:bg-gray-950 shadow-sm">
+            <div className="px-3 py-2 font-bold truncate">{userA.displayName}</div>
+            <div className="px-3 py-2 font-bold text-right truncate">{userB.displayName}</div>
+          </section>
+
           <section className="max-w-4xl mx-auto flex flex-col gap-3 pb-16">
             {displayedGameIDs.length === 0 && (
               <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
@@ -318,35 +327,25 @@ export default function RivalsPage() {
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2">
+                  <div className="grid grid-cols-2 divide-x divide-gray-300 dark:divide-zinc-600">
                     <div className={`flex items-center gap-2 px-3 py-2.5 ${colorFor(correctA)}`}>
                       {logoFor(g, pickA, pickedHomeA) && (
                         <Image src={logoFor(g, pickA, pickedHomeA)} alt="" width={28} height={28} />
                       )}
-                      <div className="flex flex-col leading-tight">
-                        <span className="text-[10px] opacity-70">{truncate14(userA.displayName)}</span>
-                        <span className="flex items-baseline gap-2">
-                          <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
-                          {isTiebreakerGame && (
-                            <span className="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">
-                              TB {userA.tieBreaker || "—"}
-                            </span>
-                          )}
-                        </span>
-                      </div>
+                      <span className="flex items-baseline gap-2">
+                        <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
+                        {isTiebreakerGame && (
+                          <span className="font-mono font-bold text-base">TB {userA.tieBreaker || "—"}</span>
+                        )}
+                      </span>
                     </div>
                     <div className={`flex items-center justify-end gap-2 px-3 py-2.5 ${colorFor(correctB)}`}>
-                      <div className="flex flex-col items-end leading-tight">
-                        <span className="text-[10px] opacity-70">{truncate14(userB.displayName)}</span>
-                        <span className="flex items-baseline gap-2">
-                          {isTiebreakerGame && (
-                            <span className="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">
-                              TB {userB.tieBreaker || "—"}
-                            </span>
-                          )}
-                          <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
-                        </span>
-                      </div>
+                      <span className="flex items-baseline gap-2">
+                        {isTiebreakerGame && (
+                          <span className="font-mono font-bold text-base">TB {userB.tieBreaker || "—"}</span>
+                        )}
+                        <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
+                      </span>
                       {logoFor(g, pickB, pickedHomeB) && (
                         <Image src={logoFor(g, pickB, pickedHomeB)} alt="" width={28} height={28} />
                       )}
