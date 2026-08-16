@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import useIsAdmin from "../hooks/useIsAdmin";
-import { CheckCircle2, Circle, Unlock, Pencil, X } from "lucide-react";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
@@ -169,6 +169,74 @@ function EditPicksModal({ uid, displayName, week, onClose }) {
   );
 }
 
+// ---- Rename user modal ----
+function RenameUserModal({ uid, currentName, onSave, onClose }) {
+  const [value, setValue] = useState(currentName || "");
+  const [saving, setSaving] = useState(false);
+
+  const trimmed = value.trim();
+  const unchanged = trimmed === (currentName || "").trim();
+
+  const handleSave = async () => {
+    if (!trimmed || unchanged) return;
+    setSaving(true);
+    await onSave(uid, trimmed);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between">
+          <h2 className="font-bold text-lg">Rename User</h2>
+          <button onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Current name</label>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{currentName || "—"}</p>
+          </div>
+
+          <div>
+            <label htmlFor="renameInput" className="block text-sm font-medium mb-1">
+              New display name
+            </label>
+            <input
+              id="renameInput"
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              maxLength={40}
+              autoFocus
+              className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !trimmed || unchanged}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Name"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---- Editable ledger cell ----
 function EditableCell({ value, onSave, type = "text", width = "w-24" }) {
   const [local, setLocal] = useState(value ?? "");
@@ -198,6 +266,7 @@ export default function AdminPage() {
   const [selectedWeekId, setSelectedWeekId] = useState(null);
   const [submittedUids, setSubmittedUids] = useState(new Set());
   const [editingUser, setEditingUser] = useState(null);
+  const [renamingUser, setRenamingUser] = useState(null);
 
   useEffect(() => {
     if (adminStatus === "not-admin") router.replace("/dashboard");
@@ -296,7 +365,7 @@ export default function AdminPage() {
         <title>Admin | EarlyNFL</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-[1600px] mx-auto space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-extrabold">Admin</h1>
 
@@ -346,18 +415,12 @@ export default function AdminPage() {
                   return (
                     <tr key={u.uid} className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <EditableCell
-                            value={u.displayName}
-                            width="w-32"
-                            onSave={(v) => saveDisplayName(u.uid, v)}
-                          />
-                          {u.isGuest && (
-                            <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
-                              guest
-                            </span>
-                          )}
-                        </div>
+                        {u.displayName || "—"}
+                        {u.isGuest && (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
+                            guest
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
                       <td className="px-3 py-2">
@@ -419,6 +482,13 @@ export default function AdminPage() {
                           >
                             <Pencil size={15} />
                           </button>
+                          <button
+                            onClick={() => setRenamingUser(u)}
+                            title="Rename this user"
+                            className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          >
+                            <UserPen size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -436,6 +506,15 @@ export default function AdminPage() {
           displayName={editingUser.displayName}
           week={selectedWeek}
           onClose={() => setEditingUser(null)}
+        />
+      )}
+
+      {renamingUser && (
+        <RenameUserModal
+          uid={renamingUser.uid}
+          currentName={renamingUser.displayName}
+          onSave={saveDisplayName}
+          onClose={() => setRenamingUser(null)}
         />
       )}
     </div>
