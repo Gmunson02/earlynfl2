@@ -149,9 +149,14 @@ export default function RivalsPage() {
   // Always sorted earliest -> latest kickoff (uniqueEventIDs is already sorted that way)
   const tiebreakerEventID = uniqueEventIDs[uniqueEventIDs.length - 1];
 
+  const weekComplete = uniqueEventIDs.length > 0 && uniqueEventIDs.every((id) => eventMap[id]?.status === "post");
+
   const displayedGameIDs = useMemo(
-    () => (showAllGames ? uniqueEventIDs : uniqueEventIDs.filter((id) => eventMap[id]?.status !== "post")),
-    [uniqueEventIDs, eventMap, showAllGames]
+    () =>
+      showAllGames || weekComplete
+        ? uniqueEventIDs
+        : uniqueEventIDs.filter((id) => eventMap[id]?.status !== "post"),
+    [uniqueEventIDs, eventMap, showAllGames, weekComplete]
   );
 
   const comparison = useMemo(() => {
@@ -161,12 +166,15 @@ export default function RivalsPage() {
     const diverging = displayedGameIDs.filter((id) => picksA.get(id) !== picksB.get(id));
     let aRight = 0;
     let bRight = 0;
+    let decidedCount = 0;
     for (const id of diverging) {
+      const isDecided = eventMap[id]?.status === "post";
+      if (isDecided) decidedCount++;
       if (winners[id] === picksA.get(id)) aRight++;
       if (winners[id] === picksB.get(id)) bRight++;
     }
-    return { picksA, picksB, diverging, aRight, bRight };
-  }, [userA, userB, displayedGameIDs, winners]);
+    return { picksA, picksB, diverging, aRight, bRight, decidedCount };
+  }, [userA, userB, displayedGameIDs, winners, eventMap]);
 
   const sortedByRank = useMemo(() => [...submissions].sort((a, b) => a.rank - b.rank), [submissions]);
 
@@ -228,9 +236,6 @@ export default function RivalsPage() {
                 <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
                   Rank #{userA.rank}, {userA.winnerCount} wins
                 </div>
-                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
-                  Tiebreaker: {userA.tieBreaker || "—"}
-                </div>
               </div>
               <Swords size={18} className="opacity-60 shrink-0 mx-2" />
               <div className="text-right">
@@ -238,29 +243,40 @@ export default function RivalsPage() {
                 <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
                   Rank #{userB.rank}, {userB.winnerCount} wins
                 </div>
-                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
-                  Tiebreaker: {userB.tieBreaker || "—"}
-                </div>
               </div>
             </div>
             <div className="mt-2 text-center text-sm">
-              {comparison.diverging.length === 0
-                ? "Same picks on every game shown — nothing to compare."
-                : `${comparison.diverging.length} game${comparison.diverging.length === 1 ? "" : "s"} where picks differ — ${comparison.aRight} - ${comparison.bRight}`}
+              {comparison.diverging.length === 0 ? (
+                weekComplete ? "Week complete — same picks on every game." : "Same picks on every game shown — nothing to compare."
+              ) : (
+                <>
+                  {weekComplete && "Week complete. "}
+                  {comparison.diverging.length} game{comparison.diverging.length === 1 ? "" : "s"} where picks differ
+                  {comparison.decidedCount > 0 && (
+                    <>
+                      {" "}— {truncate14(userA.displayName)} correct on {comparison.aRight}, {truncate14(userB.displayName)} correct on {comparison.bRight}
+                      {comparison.decidedCount < comparison.diverging.length &&
+                        ` (${comparison.diverging.length - comparison.decidedCount} still pending)`}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </section>
 
-          <section className="max-w-4xl mx-auto mb-3 flex items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {showAllGames ? "Showing all games" : "Showing live & upcoming games"}
-            </div>
-            <button
-              onClick={() => setShowAllGames((v) => !v)}
-              className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
-            >
-              {showAllGames ? "Show remaining only" : "Show all games"}
-            </button>
-          </section>
+          {!weekComplete && (
+            <section className="max-w-4xl mx-auto mb-3 flex items-center justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {showAllGames ? "Showing all games" : "Showing live & upcoming games"}
+              </div>
+              <button
+                onClick={() => setShowAllGames((v) => !v)}
+                className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
+              >
+                {showAllGames ? "Show remaining only" : "Show all games"}
+              </button>
+            </section>
+          )}
 
           <section className="max-w-4xl mx-auto flex flex-col gap-3 pb-16">
             {displayedGameIDs.length === 0 && (
@@ -310,12 +326,18 @@ export default function RivalsPage() {
                       <div className="flex flex-col leading-tight">
                         <span className="text-[10px] opacity-70">{truncate14(userA.displayName)}</span>
                         <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
+                        {isTiebreakerGame && (
+                          <span className="text-[10px] opacity-70">TB: {userA.tieBreaker || "—"}</span>
+                        )}
                       </div>
                     </div>
                     <div className={`flex items-center justify-end gap-2 px-3 py-2.5 ${colorFor(correctB)}`}>
                       <div className="flex flex-col items-end leading-tight">
                         <span className="text-[10px] opacity-70">{truncate14(userB.displayName)}</span>
                         <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
+                        {isTiebreakerGame && (
+                          <span className="text-[10px] opacity-70">TB: {userB.tieBreaker || "—"}</span>
+                        )}
                       </div>
                       {logoFor(g, pickB, pickedHomeB) && (
                         <Image src={logoFor(g, pickB, pickedHomeB)} alt="" width={28} height={28} />
