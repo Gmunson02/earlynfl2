@@ -20,7 +20,7 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
 
       allow update: if request.auth != null
-                    && request.auth.uid == userId
+                    && (request.auth.uid == userId || isAdmin())
                     && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest'])
                     && request.resource.data.displayName is string
                     && request.resource.data.displayName.size() <= 40;

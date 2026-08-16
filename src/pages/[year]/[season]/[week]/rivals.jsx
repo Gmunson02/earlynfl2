@@ -325,19 +325,27 @@ export default function RivalsPage() {
                       )}
                       <div className="flex flex-col leading-tight">
                         <span className="text-[10px] opacity-70">{truncate14(userA.displayName)}</span>
-                        <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
-                        {isTiebreakerGame && (
-                          <span className="text-[10px] opacity-70">TB: {userA.tieBreaker || "—"}</span>
-                        )}
+                        <span className="flex items-baseline gap-2">
+                          <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
+                          {isTiebreakerGame && (
+                            <span className="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">
+                              TB {userA.tieBreaker || "—"}
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
                     <div className={`flex items-center justify-end gap-2 px-3 py-2.5 ${colorFor(correctB)}`}>
                       <div className="flex flex-col items-end leading-tight">
                         <span className="text-[10px] opacity-70">{truncate14(userB.displayName)}</span>
-                        <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
-                        {isTiebreakerGame && (
-                          <span className="text-[10px] opacity-70">TB: {userB.tieBreaker || "—"}</span>
-                        )}
+                        <span className="flex items-baseline gap-2">
+                          {isTiebreakerGame && (
+                            <span className="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">
+                              TB {userB.tieBreaker || "—"}
+                            </span>
+                          )}
+                          <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
+                        </span>
                       </div>
                       {logoFor(g, pickB, pickedHomeB) && (
                         <Image src={logoFor(g, pickB, pickedHomeB)} alt="" width={28} height={28} />

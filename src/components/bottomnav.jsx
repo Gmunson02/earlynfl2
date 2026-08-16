@@ -31,12 +31,21 @@ export default function BottomNav() {
     [seasonYear, seasonType, week]
   );
 
+  // Settings should return you to wherever you were, not always /dashboard.
+  // Guard against re-wrapping while already on /profile (its asPath already
+  // carries a ?from= param, which would otherwise nest on every render).
+  const settingsHref = useMemo(
+    () =>
+      router.pathname === "/profile" ? router.asPath : `/profile?from=${encodeURIComponent(router.asPath)}`,
+    [router.asPath, router.pathname]
+  );
+
   const navItems = [
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
     { label: "Game Center", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
-    { label: "Settings", href: "/profile", icon: Settings, ready: true },
+    { label: "Settings", href: settingsHref, icon: Settings, ready: true },
   ];
 
   return (

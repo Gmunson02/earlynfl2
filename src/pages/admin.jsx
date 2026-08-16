@@ -261,6 +261,18 @@ export default function AdminPage() {
     }
   }, []);
 
+  const saveDisplayName = useCallback(async (uid, value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, displayName: trimmed } : u)));
+    try {
+      await setDoc(doc(db, "users", uid), { displayName: trimmed }, { merge: true });
+    } catch (err) {
+      console.error("Display name save failed:", err);
+      alert("Failed to update display name — see console.");
+    }
+  }, []);
+
   const unlockUser = useCallback(
     async (uid, minutes = 30) => {
       if (!weekKey) return;
@@ -334,12 +346,18 @@ export default function AdminPage() {
                   return (
                     <tr key={u.uid} className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap">
-                        {u.displayName || "—"}
-                        {u.isGuest && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
-                            guest
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <EditableCell
+                            value={u.displayName}
+                            width="w-32"
+                            onSave={(v) => saveDisplayName(u.uid, v)}
+                          />
+                          {u.isGuest && (
+                            <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
+                              guest
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
                       <td className="px-3 py-2">
