@@ -331,6 +331,15 @@ export default function AdminPage() {
     })();
   }, [weekKey]);
 
+  const kickoff = useMemo(() => tsToDate(selectedWeek?.firstGame), [selectedWeek]);
+  const hoursUntilKickoff = kickoff ? (kickoff.getTime() - Date.now()) / 3_600_000 : null;
+  const showMissingList = hoursUntilKickoff != null && hoursUntilKickoff <= 24;
+
+  const missingUsers = useMemo(
+    () => users.filter((u) => !submittedUids.has(u.uid)),
+    [users, submittedUids]
+  );
+
   const saveLedgerField = useCallback(async (uid, field, value) => {
     setLedger((prev) => ({ ...prev, [uid]: { ...prev[uid], [field]: value } }));
     try {
@@ -394,6 +403,32 @@ export default function AdminPage() {
           )}
         </header>
 
+        {!loading && selectedWeek && (
+          <div className="rounded-xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 px-4 py-3">
+            <div className="font-bold text-indigo-900 dark:text-indigo-100">
+              {submittedUids.size} of {users.length} users have submitted picks for {selectedWeek.label || weekKey}
+            </div>
+            <div className="mt-2 h-2 w-full rounded-full bg-indigo-200 dark:bg-indigo-900 overflow-hidden">
+              <div
+                className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all"
+                style={{ width: users.length ? `${(submittedUids.size / users.length) * 100}%` : "0%" }}
+              />
+            </div>
+
+            {showMissingList && missingUsers.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800 text-sm text-indigo-900 dark:text-indigo-100">
+                <span className="font-bold">
+                  {hoursUntilKickoff > 0
+                    ? `Kickoff in ${hoursUntilKickoff.toFixed(1)}h — `
+                    : "Kickoff has passed — "}
+                  Still need picks from:
+                </span>{" "}
+                {missingUsers.map((u) => u.displayName || u.uid).join(", ")}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <p className="text-zinc-500">Loading…</p>
         ) : (
@@ -401,7 +436,7 @@ export default function AdminPage() {
             <table className="min-w-max w-full text-sm">
               <thead className="bg-zinc-700 text-white">
                 <tr>
-                  <th className="text-left px-3 py-2">User Name</th>
+                  <th className="text-left px-3 py-2">Display Name</th>
                   <th className="text-left px-3 py-2">Email</th>
                   <th className="text-left px-3 py-2">Full Name</th>
                   <th className="text-right px-3 py-2">Starting Balance</th>
@@ -480,24 +515,24 @@ export default function AdminPage() {
                           <button
                             onClick={() => unlockUser(u.uid, 30)}
                             title="Unlock picks for 30 minutes"
-                            className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm whitespace-nowrap"
                           >
-                            <Unlock size={15} />
+                            <Unlock size={15} /> Unlock Picks
                           </button>
                           <button
                             onClick={() => setEditingUser(u)}
                             title="Edit this user's picks"
-                            className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm whitespace-nowrap disabled:opacity-50"
                             disabled={!selectedWeek}
                           >
-                            <Pencil size={15} />
+                            <Pencil size={15} /> Edit Picks
                           </button>
                           <button
                             onClick={() => setRenamingUser(u)}
-                            title="Rename this user"
-                            className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            title="Edit this user's display name"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm whitespace-nowrap"
                           >
-                            <UserPen size={15} />
+                            <UserPen size={15} /> Edit Display Name
                           </button>
                         </div>
                       </td>
@@ -615,25 +650,25 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-1">
+                      <div className="flex flex-col gap-2 pt-1">
                         <button
                           onClick={() => unlockUser(u.uid, 30)}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
                         >
-                          <Unlock size={15} /> Unlock
+                          <Unlock size={15} /> Unlock Picks
                         </button>
                         <button
                           onClick={() => setEditingUser(u)}
                           disabled={!selectedWeek}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
                         >
-                          <Pencil size={15} /> Picks
+                          <Pencil size={15} /> Edit Picks
                         </button>
                         <button
                           onClick={() => setRenamingUser(u)}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
                         >
-                          <UserPen size={15} /> Rename
+                          <UserPen size={15} /> Edit Display Name
                         </button>
                       </div>
                     </div>
