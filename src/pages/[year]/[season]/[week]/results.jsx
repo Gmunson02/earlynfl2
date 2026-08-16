@@ -46,6 +46,10 @@ export default function ScoresPage() {
   // Portrait-only: tapping a game box shows every user's pick for that game
   const [selectedGameID, setSelectedGameID] = useState(null);
 
+  // Landscape: clicking a user's name shows their "Path to 1st" in a modal
+  // (the portrait view already shows this inline via row expand)
+  const [pathToFirstUid, setPathToFirstUid] = useState(null);
+
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
 
@@ -444,6 +448,50 @@ export default function ScoresPage() {
   const joinWithAnd = (arr) =>
     arr.length <= 1 ? arr.join("") : `${arr.slice(0, -1).join(", ")}${arr.length > 2 ? "," : ""} and ${arr[arr.length - 1]}`;
 
+  // Shared by both the portrait inline callout and the landscape click-through
+  // modal. Returns null when there's nothing to show (week fully decided).
+  const getPathToFirst = (uid) => {
+    if (remainingEventIDs.length === 0) return null;
+
+    const quickStatus = computeQuickStatus(uid);
+
+    if (quickStatus === null && remainingEventIDs.length > MAX_SCENARIO_GAMES) {
+      return { kind: "guardrail", text: `unlocks once ${MAX_SCENARIO_GAMES} or fewer games remain this week.` };
+    }
+
+    if (quickStatus === "locked") return { kind: "verdict", text: "🔒 Locked in for 1st place this week!" };
+    if (quickStatus === "eliminated") return { kind: "verdict", text: "Eliminated from 1st place this week." };
+
+    const scenario = buildScenario(uid);
+    if (!scenario) return null;
+
+    if (scenario.status === "locked") return { kind: "verdict", text: "🔒 Locked in for 1st place this week!" };
+    if (scenario.status === "eliminated") return { kind: "verdict", text: "Eliminated from 1st place this week." };
+
+    const teamAbbrs = scenario.necessary.map((n) => n.needAbbr);
+    const clauses = [];
+    if (teamAbbrs.length > 0) clauses.push(`${joinWithAnd(teamAbbrs)} must win`);
+    if (scenario.needsTiebreaker) clauses.push("you must win the tiebreaker");
+
+    const orText =
+      scenario.flexibleOptions.length > 0
+        ? `at least one of: ${scenario.flexibleOptions.map((opt) => `(${opt.split(" & ").join(" and ")})`).join(" or ")}`
+        : "";
+
+    let text;
+    if (clauses.length === 0 && !orText) {
+      text = "Path depends on how the remaining games go — several combinations could work in your favor.";
+    } else if (scenario.fullyDetermined) {
+      text = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
+    } else if (clauses.length === 0) {
+      text = `Needs: ${orText} to finish 1st.`;
+    } else {
+      text = `Needs: ${joinWithAnd(clauses)} — plus ${orText}.`;
+    }
+
+    return { kind: "verdict", text };
+  };
+
   const formatGameDate = (iso) =>
     new Date(iso)
       .toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "America/New_York" })
@@ -567,9 +615,10 @@ export default function ScoresPage() {
               return (
                 <tr key={entry.uid} className={rowBg}>
                   <td
-                    className={`${W_USER} py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap`}
+                    className={`${W_USER} py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap cursor-pointer hover:underline`}
                     style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
-                    title={entry.displayName || ""}
+                    title="View Path to 1st"
+                    onClick={() => setPathToFirstUid(entry.uid)}
                   >
                     {truncate14(entry.displayName)}
                   </td>
@@ -669,66 +718,16 @@ export default function ScoresPage() {
                     <tr className={rowBg}>
                       <td colSpan={3} className={`${borderClass} p-2`}>
                         {(() => {
-                          if (remainingEventIDs.length === 0) return null;
-
-                          const quickStatus = computeQuickStatus(entry.uid);
-
-                          if (quickStatus === null && remainingEventIDs.length > MAX_SCENARIO_GAMES) {
-                            return (
-                              <div className="mb-2 rounded-md bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 px-2 py-1.5 text-xs">
-                                <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
-                                unlocks once {MAX_SCENARIO_GAMES} or fewer games remain this week.
-                              </div>
-                            );
-                          }
-
-                          let message;
-                          if (quickStatus === "locked") {
-                            message = "🔒 Locked in for 1st place this week!";
-                          } else if (quickStatus === "eliminated") {
-                            message = "Eliminated from 1st place this week.";
-                          } else {
-                            const scenario = buildScenario(entry.uid);
-                            if (!scenario) return null;
-
-                            if (scenario.status === "locked") {
-                              message = "🔒 Locked in for 1st place this week!";
-                            } else if (scenario.status === "eliminated") {
-                              message = "Eliminated from 1st place this week.";
-                            } else {
-                              const teamAbbrs = scenario.necessary.map((n) => n.needAbbr);
-                              const clauses = [];
-                              if (teamAbbrs.length > 0) {
-                                clauses.push(`${joinWithAnd(teamAbbrs)} must win`);
-                              }
-                              if (scenario.needsTiebreaker) {
-                                clauses.push("you must win the tiebreaker");
-                              }
-
-                              const orText =
-                                scenario.flexibleOptions.length > 0
-                                  ? `at least one of: ${scenario.flexibleOptions
-                                      .map((opt) => `(${opt.split(" & ").join(" and ")})`)
-                                      .join(" or ")}`
-                                  : "";
-
-                              if (clauses.length === 0 && !orText) {
-                                message =
-                                  "Path depends on how the remaining games go — several combinations could work in your favor.";
-                              } else if (scenario.fullyDetermined) {
-                                message = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
-                              } else if (clauses.length === 0) {
-                                message = `Needs: ${orText} to finish 1st.`;
-                              } else {
-                                message = `Needs: ${joinWithAnd(clauses)} — plus ${orText}.`;
-                              }
-                            }
-                          }
-
+                          const p2f = getPathToFirst(entry.uid);
+                          if (!p2f) return null;
+                          const boxClass =
+                            p2f.kind === "guardrail"
+                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
+                              : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100";
                           return (
-                            <div className="mb-2 rounded-md bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100 px-2 py-1.5 text-xs">
+                            <div className={`mb-2 rounded-md px-2 py-1.5 text-xs ${boxClass}`}>
                               <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
-                              {message}
+                              {p2f.text}
                             </div>
                           );
                         })()}
@@ -895,6 +894,51 @@ export default function ScoresPage() {
         );
       })()}
 
+      {/* Landscape: Path to 1st modal, opened by clicking a user's name */}
+      {pathToFirstUid && (() => {
+        const entry = submissions.find((s) => s.uid === pathToFirstUid);
+        if (!entry) return null;
+        const p2f = getPathToFirst(pathToFirstUid);
+
+        return (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setPathToFirstUid(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-bold text-lg">{entry.displayName}</div>
+                <button
+                  onClick={() => setPathToFirstUid(null)}
+                  className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+
+              {p2f ? (
+                <div
+                  className={`rounded-md px-3 py-2 text-sm ${
+                    p2f.kind === "guardrail"
+                      ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
+                      : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100"
+                  }`}
+                >
+                  <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
+                  {p2f.text}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Nothing to show — this week is fully decided.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
