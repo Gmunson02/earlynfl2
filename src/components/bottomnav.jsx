@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Home, List, Trophy, PlayCircle, Settings } from "lucide-react";
+import { Home, List, Trophy, Swords, Settings } from "lucide-react";
 import { useMemo } from "react";
 import useScheduleWeek from "../hooks/useScheduleWeek";
 
@@ -26,8 +26,8 @@ export default function BottomNav() {
     [seasonYear, seasonType, week]
   );
 
-  const matchupsHref = useMemo(
-    () => buildWeekPath(seasonYear, seasonType, week, "gamecenter"),
+  const rivalsHref = useMemo(
+    () => buildWeekPath(seasonYear, seasonType, week, "rivals"),
     [seasonYear, seasonType, week]
   );
 
@@ -44,7 +44,7 @@ export default function BottomNav() {
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
-    { label: "Game Center", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
+    { label: "Rivals", href: rivalsHref, icon: Swords, ready: !!rivalsHref },
     { label: "Settings", href: settingsHref, icon: Settings, ready: true },
   ];
 
