@@ -512,7 +512,7 @@ export default function AdminPage() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-extrabold">Admin</h1>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full sm:w-auto flex flex-wrap items-center gap-3">
             <button
               onClick={() => setShowRegisteredUsers(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
@@ -531,7 +531,7 @@ export default function AdminPage() {
               <select
                 value={selectedWeekId || ""}
                 onChange={(e) => setSelectedWeekId(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 text-sm"
+                className="w-full sm:w-auto px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 text-sm"
               >
                 {weeksList.map((w) => (
                   <option key={w.id} value={w.id}>
