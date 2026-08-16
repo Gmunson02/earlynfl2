@@ -148,6 +148,11 @@ export default function RivalsPage() {
 
   // Always sorted earliest -> latest kickoff (uniqueEventIDs is already sorted that way)
   const tiebreakerEventID = uniqueEventIDs[uniqueEventIDs.length - 1];
+  const tiebreakerGame = eventMap[tiebreakerEventID];
+  const tiebreakerFinal =
+    tiebreakerGame?.status === "post" && tiebreakerGame.homeScore != null && tiebreakerGame.awayScore != null
+      ? tiebreakerGame.homeScore + tiebreakerGame.awayScore
+      : null;
 
   const weekComplete = uniqueEventIDs.length > 0 && uniqueEventIDs.every((id) => eventMap[id]?.status === "post");
 
@@ -266,6 +271,32 @@ export default function RivalsPage() {
                 </>
               )}
             </div>
+
+            {tiebreakerFinal != null && (
+              <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800 text-center text-sm">
+                <div className="font-bold uppercase tracking-wide text-xs text-indigo-600 dark:text-indigo-400 mb-1">
+                  Tiebreaker — Final Combined Score: {tiebreakerFinal}
+                </div>
+                <div className="flex items-center justify-center gap-6">
+                  <span>
+                    {truncate14(userA.displayName)}: {userA.tieBreaker || "—"}
+                    {userA.tieBreaker !== "" && userA.tieBreaker != null && (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {" "}(off by {Math.abs(Number(userA.tieBreaker) - tiebreakerFinal)})
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {truncate14(userB.displayName)}: {userB.tieBreaker || "—"}
+                    {userB.tieBreaker !== "" && userB.tieBreaker != null && (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {" "}(off by {Math.abs(Number(userB.tieBreaker) - tiebreakerFinal)})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
           </section>
 
           {!weekComplete && (
@@ -282,9 +313,9 @@ export default function RivalsPage() {
             </section>
           )}
 
-          <section className="max-w-4xl mx-auto sticky top-0 z-10 grid grid-cols-2 mb-2 rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700 divide-x divide-gray-300 dark:divide-zinc-600 bg-white dark:bg-gray-950 shadow-sm">
-            <div className="px-3 py-2 font-bold truncate">{userA.displayName}</div>
-            <div className="px-3 py-2 font-bold text-right truncate">{userB.displayName}</div>
+          <section className="max-w-4xl mx-auto sticky top-0 z-10 grid grid-cols-2 mb-2 rounded-lg overflow-hidden divide-x divide-indigo-400 dark:divide-indigo-700 bg-indigo-600 dark:bg-indigo-800 text-white shadow-md">
+            <div className="px-3 py-2.5 text-base sm:text-lg font-extrabold truncate">{userA.displayName}</div>
+            <div className="px-3 py-2.5 text-base sm:text-lg font-extrabold text-right truncate">{userB.displayName}</div>
           </section>
 
           <section className="max-w-4xl mx-auto flex flex-col gap-3 pb-16">
@@ -320,7 +351,14 @@ export default function RivalsPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-slate-50 dark:bg-zinc-800/50">
-                    <span>{g?.away?.abbr} @ {g?.home?.abbr}</span>
+                    <span>
+                      {g?.away?.abbr} @ {g?.home?.abbr}
+                      {isTiebreakerGame && tiebreakerFinal != null && (
+                        <span className="ml-2 font-bold text-indigo-600 dark:text-indigo-400">
+                          Final: {tiebreakerFinal}
+                        </span>
+                      )}
+                    </span>
                     {isTiebreakerGame && (
                       <span className="font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
                         Tiebreaker Game
