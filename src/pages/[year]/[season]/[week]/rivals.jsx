@@ -21,6 +21,7 @@ export default function RivalsPage() {
   const [myUid, setMyUid] = useState(null);
   const [uidA, setUidA] = useState(null);
   const [uidB, setUidB] = useState(null);
+  const [showAllGames, setShowAllGames] = useState(false);
 
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
@@ -145,11 +146,19 @@ export default function RivalsPage() {
   const userA = submissions.find((s) => s.uid === uidA);
   const userB = submissions.find((s) => s.uid === uidB);
 
+  // Always sorted earliest -> latest kickoff (uniqueEventIDs is already sorted that way)
+  const tiebreakerEventID = uniqueEventIDs[uniqueEventIDs.length - 1];
+
+  const displayedGameIDs = useMemo(
+    () => (showAllGames ? uniqueEventIDs : uniqueEventIDs.filter((id) => eventMap[id]?.status !== "post")),
+    [uniqueEventIDs, eventMap, showAllGames]
+  );
+
   const comparison = useMemo(() => {
     if (!userA || !userB) return null;
     const picksA = new Map(userA.picks.map((p) => [p.eventID, p.teamName]));
     const picksB = new Map(userB.picks.map((p) => [p.eventID, p.teamName]));
-    const diverging = uniqueEventIDs.filter((id) => picksA.get(id) !== picksB.get(id));
+    const diverging = displayedGameIDs.filter((id) => picksA.get(id) !== picksB.get(id));
     let aRight = 0;
     let bRight = 0;
     for (const id of diverging) {
@@ -157,7 +166,7 @@ export default function RivalsPage() {
       if (winners[id] === picksB.get(id)) bRight++;
     }
     return { picksA, picksB, diverging, aRight, bRight };
-  }, [userA, userB, uniqueEventIDs, winners]);
+  }, [userA, userB, displayedGameIDs, winners]);
 
   const sortedByRank = useMemo(() => [...submissions].sort((a, b) => a.rank - b.rank), [submissions]);
 
@@ -236,13 +245,30 @@ export default function RivalsPage() {
             </div>
             <div className="mt-2 text-center text-sm">
               {comparison.diverging.length === 0
-                ? "Same picks on every game this week — nothing to compare."
+                ? "Same picks on every game shown — nothing to compare."
                 : `${comparison.diverging.length} game${comparison.diverging.length === 1 ? "" : "s"} where picks differ — ${comparison.aRight} - ${comparison.bRight}`}
             </div>
           </section>
 
+          <section className="max-w-4xl mx-auto mb-3 flex items-center justify-between">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {showAllGames ? "Showing all games" : "Showing live & upcoming games"}
+            </div>
+            <button
+              onClick={() => setShowAllGames((v) => !v)}
+              className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
+            >
+              {showAllGames ? "Show remaining only" : "Show all games"}
+            </button>
+          </section>
+
           <section className="max-w-4xl mx-auto flex flex-col gap-3 pb-16">
-            {comparison.diverging.map((id) => {
+            {displayedGameIDs.length === 0 && (
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                No live or upcoming games left this week.
+              </div>
+            )}
+            {displayedGameIDs.map((id) => {
               const g = eventMap[id];
               const pickA = comparison.picksA.get(id);
               const pickB = comparison.picksB.get(id);
@@ -251,6 +277,7 @@ export default function RivalsPage() {
               const isDecided = g?.status === "post";
               const correctA = winners[id] === pickA;
               const correctB = winners[id] === pickB;
+              const isTiebreakerGame = id === tiebreakerEventID;
               const colorFor = (correct) =>
                 !isDecided
                   ? "bg-slate-100 dark:bg-zinc-800"
@@ -259,9 +286,21 @@ export default function RivalsPage() {
                   : "bg-red-200 dark:bg-red-300 text-gray-900";
 
               return (
-                <div key={id} className="rounded-xl overflow-hidden border border-gray-200 dark:border-zinc-700">
-                  <div className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-slate-50 dark:bg-zinc-800/50">
-                    {g?.away?.abbr} @ {g?.home?.abbr}
+                <div
+                  key={id}
+                  className={`rounded-xl overflow-hidden border ${
+                    isTiebreakerGame
+                      ? "border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-300 dark:ring-indigo-700"
+                      : "border-gray-200 dark:border-zinc-700"
+                  }`}
+                >
+                  <div className="flex items-center justify-between px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-slate-50 dark:bg-zinc-800/50">
+                    <span>{g?.away?.abbr} @ {g?.home?.abbr}</span>
+                    {isTiebreakerGame && (
+                      <span className="font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                        Tiebreaker Game
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2">
                     <div className={`flex items-center gap-2 px-3 py-2.5 ${colorFor(correctA)}`}>
