@@ -182,9 +182,15 @@ function RegisteredUsersModal({ users, onClose }) {
     [users]
   );
 
+  const formatDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
         <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between shrink-0">
           <h2 className="font-bold text-lg">Registered Users ({registered.length})</h2>
           <button onClick={onClose} aria-label="Close">
@@ -192,19 +198,35 @@ function RegisteredUsersModal({ users, onClose }) {
           </button>
         </div>
 
-        <div className="overflow-y-auto p-5 space-y-2">
+        <div className="overflow-auto p-5">
           {registered.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">No registered users yet.</p>
           ) : (
-            registered.map((u) => (
-              <div
-                key={u.uid}
-                className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
-              >
-                <span className="font-semibold">{u.displayName || "—"}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400 truncate ml-3">{u.email || "—"}</span>
-              </div>
-            ))
+            <table className="min-w-max w-full text-sm">
+              <thead className="bg-zinc-700 text-white">
+                <tr>
+                  <th className="text-left px-3 py-2">Display Name</th>
+                  <th className="text-left px-3 py-2">First Name</th>
+                  <th className="text-left px-3 py-2">Last Name</th>
+                  <th className="text-left px-3 py-2">Email</th>
+                  <th className="text-left px-3 py-2">Date Registered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registered.map((u, idx) => (
+                  <tr
+                    key={u.uid}
+                    className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}
+                  >
+                    <td className="px-3 py-2 font-semibold whitespace-nowrap">{u.displayName || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{u.firstName || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{u.lastName || "—"}</td>
+                    <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{formatDate(u.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>
@@ -365,6 +387,11 @@ export default function AdminPage() {
   const [expandedUids, setExpandedUids] = useState(new Set());
   const [invitingUser, setInvitingUser] = useState(false);
   const [showRegisteredUsers, setShowRegisteredUsers] = useState(false);
+
+  const sortedUsers = useMemo(
+    () => [...users].sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
+    [users]
+  );
 
   const toggleExpanded = useCallback((uid) => {
     setExpandedUids((prev) => {
@@ -563,7 +590,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u, idx) => {
+                {sortedUsers.map((u, idx) => {
                   const l = ledger[u.uid] || {};
                   const submitted = submittedUids.has(u.uid);
                   const startingBalance = Number(l.startingBalance) || 0;
@@ -659,7 +686,7 @@ export default function AdminPage() {
 
         {!loading && (
           <div className="sm:hidden flex flex-col gap-2">
-            {users.map((u) => {
+            {sortedUsers.map((u) => {
               const l = ledger[u.uid] || {};
               const submitted = submittedUids.has(u.uid);
               const startingBalance = Number(l.startingBalance) || 0;
