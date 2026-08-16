@@ -153,6 +153,8 @@ export default function RivalsPage() {
     tiebreakerGame?.status === "post" && tiebreakerGame.homeScore != null && tiebreakerGame.awayScore != null
       ? tiebreakerGame.homeScore + tiebreakerGame.awayScore
       : null;
+  const tiebreakerFinalLabel =
+    tiebreakerFinal != null ? `${tiebreakerGame.awayScore}-${tiebreakerGame.homeScore} (${tiebreakerFinal})` : null;
 
   const weekComplete = uniqueEventIDs.length > 0 && uniqueEventIDs.every((id) => eventMap[id]?.status === "post");
 
@@ -275,7 +277,7 @@ export default function RivalsPage() {
             {tiebreakerFinal != null && (
               <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800 text-center text-sm">
                 <div className="font-bold uppercase tracking-wide text-xs text-indigo-600 dark:text-indigo-400 mb-1">
-                  Tiebreaker — Final Combined Score: {tiebreakerFinal}
+                  Tiebreaker — Final: {tiebreakerFinalLabel}
                 </div>
                 <div className="flex items-center justify-center gap-6">
                   <span>
@@ -355,7 +357,7 @@ export default function RivalsPage() {
                       {g?.away?.abbr} @ {g?.home?.abbr}
                       {isTiebreakerGame && tiebreakerFinal != null && (
                         <span className="ml-2 font-bold text-indigo-600 dark:text-indigo-400">
-                          Final: {tiebreakerFinal}
+                          Final: {tiebreakerFinalLabel}
                         </span>
                       )}
                     </span>
