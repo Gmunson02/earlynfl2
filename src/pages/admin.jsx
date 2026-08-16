@@ -15,9 +15,12 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import useIsAdmin from "../hooks/useIsAdmin";
-import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight } from "lucide-react";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
+const SITE_URL = "https://www.earlynfl.com";
+const INVITE_SUBJECT = "Join our NFL Pick 'Em League!";
+const INVITE_BODY = `Hey! I'm inviting you to join our NFL pick 'em league this season.\n\nHead to ${SITE_URL} to sign up and start making your picks each week. See you there!`;
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const SYSTEM_FIELDS = ["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey", "adminUnlockUntil"];
 
@@ -169,6 +172,58 @@ function EditPicksModal({ uid, displayName, week, onClose }) {
   );
 }
 
+// ---- Invite new user modal ----
+function InviteUserModal({ onClose }) {
+  const mailtoHref = `mailto:?subject=${encodeURIComponent(INVITE_SUBJECT)}&body=${encodeURIComponent(INVITE_BODY)}`;
+
+  // iOS Messages expects "sms:&body=...", most Android browsers expect "sms:?body=..."
+  const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const smsHref = `sms:${isIOS ? "&" : "?"}body=${encodeURIComponent(INVITE_BODY)}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between">
+          <h2 className="font-bold text-lg">Invite New User</h2>
+          <button onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Message preview</label>
+            <p className="text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              {INVITE_BODY}
+            </p>
+          </div>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Choose how to send it — you'll pick the recipient and app on the next screen.
+          </p>
+
+          <div className="flex flex-col gap-2">
+            <a
+              href={mailtoHref}
+              onClick={onClose}
+              className="flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg"
+            >
+              <Mail size={18} /> Invite via Email
+            </a>
+            <a
+              href={smsHref}
+              onClick={onClose}
+              className="flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg"
+            >
+              <MessageSquare size={18} /> Invite via Text
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---- Rename user modal ----
 function RenameUserModal({ uid, currentName, onSave, onClose }) {
   const [value, setValue] = useState(currentName || "");
@@ -268,6 +323,7 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [renamingUser, setRenamingUser] = useState(null);
   const [expandedUids, setExpandedUids] = useState(new Set());
+  const [invitingUser, setInvitingUser] = useState(false);
 
   const toggleExpanded = useCallback((uid) => {
     setExpandedUids((prev) => {
@@ -388,19 +444,28 @@ export default function AdminPage() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-extrabold">Admin</h1>
 
-          {weeksList.length > 0 && (
-            <select
-              value={selectedWeekId || ""}
-              onChange={(e) => setSelectedWeekId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 text-sm"
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setInvitingUser(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"
             >
-              {weeksList.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.label || w.id}
-                </option>
-              ))}
-            </select>
-          )}
+              <UserPlus size={16} /> Invite New User
+            </button>
+
+            {weeksList.length > 0 && (
+              <select
+                value={selectedWeekId || ""}
+                onChange={(e) => setSelectedWeekId(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 text-sm"
+              >
+                {weeksList.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label || w.id}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </header>
 
         {!loading && selectedWeek && (
@@ -697,6 +762,8 @@ export default function AdminPage() {
           onClose={() => setRenamingUser(null)}
         />
       )}
+
+      {invitingUser && <InviteUserModal onClose={() => setInvitingUser(false)} />}
     </div>
   );
 }
