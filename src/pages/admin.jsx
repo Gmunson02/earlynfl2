@@ -15,7 +15,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import useIsAdmin from "../hooks/useIsAdmin";
-import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare } from "lucide-react";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
 const SITE_URL = "https://www.earlynfl.com";
@@ -167,6 +167,46 @@ function EditPicksModal({ uid, displayName, week, onClose }) {
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Registered users modal (excludes guests) ----
+function RegisteredUsersModal({ users, onClose }) {
+  const registered = useMemo(
+    () =>
+      users
+        .filter((u) => !u.isGuest)
+        .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
+    [users]
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between shrink-0">
+          <h2 className="font-bold text-lg">Registered Users ({registered.length})</h2>
+          <button onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5 space-y-2">
+          {registered.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No registered users yet.</p>
+          ) : (
+            registered.map((u) => (
+              <div
+                key={u.uid}
+                className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
+              >
+                <span className="font-semibold">{u.displayName || "—"}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 truncate ml-3">{u.email || "—"}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
@@ -324,6 +364,7 @@ export default function AdminPage() {
   const [renamingUser, setRenamingUser] = useState(null);
   const [expandedUids, setExpandedUids] = useState(new Set());
   const [invitingUser, setInvitingUser] = useState(false);
+  const [showRegisteredUsers, setShowRegisteredUsers] = useState(false);
 
   const toggleExpanded = useCallback((uid) => {
     setExpandedUids((prev) => {
@@ -445,6 +486,13 @@ export default function AdminPage() {
           <h1 className="text-3xl font-extrabold">Admin</h1>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowRegisteredUsers(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
+            >
+              <Users size={16} /> Registered Users
+            </button>
+
             <button
               onClick={() => setInvitingUser(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"
@@ -764,6 +812,10 @@ export default function AdminPage() {
       )}
 
       {invitingUser && <InviteUserModal onClose={() => setInvitingUser(false)} />}
+
+      {showRegisteredUsers && (
+        <RegisteredUsersModal users={users} onClose={() => setShowRegisteredUsers(false)} />
+      )}
     </div>
   );
 }
