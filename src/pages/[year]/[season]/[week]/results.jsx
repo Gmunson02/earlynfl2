@@ -6,6 +6,7 @@ import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 
@@ -74,16 +75,17 @@ export default function ScoresPage() {
       const seasontype = TYPE_MAP[season] ?? 2;
       const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
-      const [weeksSnap, espnData] = await Promise.all([
+      const [weeksSnap, espnData, nameMap] = await Promise.all([
         getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
         fetch(apiUrl).then((r) => r.json()),
+        fetchDisplayNameMap(),
       ]);
 
       if (cancelled) return;
 
-      // Each week doc already stores the display name at submission time —
-      // avoids a full "users" collection scan on every load/poll. Trade-off:
-      // a name change after submitting won't retroactively update old weeks.
+      // Always show the user's current display name, not whatever was
+      // recorded at pick-submission time — falls back to the snapshot only
+      // if their profile doc is missing (e.g. a deleted account).
       const picks = [];
       for (const docSnap of weeksSnap.docs) {
         const userData = docSnap.data();
@@ -95,7 +97,7 @@ export default function ScoresPage() {
 
         picks.push({
           uid,
-          displayName: userData.displayName || "Unknown",
+          displayName: nameMap.get(uid) || userData.displayName || "Unknown",
           picks: entries,
           tieBreaker: userData.tieBreaker || "",
         });

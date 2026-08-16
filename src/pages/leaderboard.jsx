@@ -3,6 +3,7 @@ import Head from "next/head";
 import { db } from "../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { loadSeasonStandingsByName } from "../lib/seasonStandings";
+import { fetchDisplayNameMap } from "../lib/liveDisplayNames";
 
 const CURRENT_YEAR = 2026;
 const CURRENT_SEASON = "reg"; // standings only count regular season
@@ -16,12 +17,13 @@ export default function LeaderboardPage() {
   const [weeklyDocs, setWeeklyDocs] = useState([]);
   const [latestWeekly, setLatestWeekly] = useState(null);
   const [lastSeasonRows, setLastSeasonRows] = useState([]);
+  const [nameMap, setNameMap] = useState(new Map());
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
 
-      const [sSnap, wSnap, lastSeason] = await Promise.all([
+      const [sSnap, wSnap, lastSeason, names] = await Promise.all([
         getDoc(doc(db, "season_leaderboard", `${CURRENT_YEAR}-${CURRENT_SEASON}`)),
         getDocs(
           query(
@@ -30,7 +32,11 @@ export default function LeaderboardPage() {
             where("season", "==", CURRENT_SEASON)
           )
         ),
+        // Last season's standings are a closed-out historical record, grouped
+        // by the name recorded at the time — deliberately not overlaid with
+        // live names here.
         loadSeasonStandingsByName(LAST_YEAR, LAST_SEASON),
+        fetchDisplayNameMap(),
       ]);
 
       const season = sSnap.exists() ? { id: sSnap.id, ...sSnap.data() } : null;
@@ -42,6 +48,7 @@ export default function LeaderboardPage() {
       setWeeklyDocs(weeklies);
       setLatestWeekly(weeklies[0] || null);
       setLastSeasonRows(lastSeason);
+      setNameMap(names);
       setLoading(false);
     };
     load();
@@ -72,19 +79,19 @@ export default function LeaderboardPage() {
       const s = getStand(uid);
       return {
         uid,
-        displayName: (typeof w === "string" ? null : w.displayName) || s?.displayName || uid,
+        displayName: nameMap.get(uid) || (typeof w === "string" ? null : w.displayName) || s?.displayName || uid,
         correctPicks: s?.wins ?? null,
         tieBreaker: s?.tieBreaker ?? null,
       };
     });
-  }, [latestWeekly]);
+  }, [latestWeekly, nameMap]);
 
   // Current season standings (Rank, Name, Wins, Points)
   const rows = useMemo(() => {
     const players = seasonDoc?.players || {};
     const merged = Object.entries(players).map(([uid, p]) => ({
       uid,
-      name: p.displayName || uid,
+      name: nameMap.get(uid) || p.displayName || uid,
       wins: weeklyWinsMap.get(uid) || 0,
       points: p.totalCorrectPicks || 0,
     }));
@@ -103,7 +110,7 @@ export default function LeaderboardPage() {
       }
       return { ...r, rank };
     });
-  }, [seasonDoc, weeklyWinsMap]);
+  }, [seasonDoc, weeklyWinsMap, nameMap]);
 
   const lastSeasonWinner = lastSeasonRows[0] || null;
 

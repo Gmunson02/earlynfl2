@@ -20,6 +20,7 @@ import useRequireProfile from "../hooks/useRequireProfile";
 import useScheduleWeek from "../hooks/useScheduleWeek";
 import useIsAdmin from "../hooks/useIsAdmin";
 import { loadSeasonStandingsByName } from "../lib/seasonStandings";
+import { fetchDisplayNameMap } from "../lib/liveDisplayNames";
 import InstallPrompt from "../components/InstallPrompt";
 
 const LAST_SEASON_YEAR = 2025;
@@ -57,7 +58,10 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
 
       const prevWeek = Math.max(1, wVal - 1);
       const docId = `${seasonYear}-${seasonType}-W${prevWeek}`;
-      const snap = await getDoc(doc(db, "weekly_results", docId));
+      const [snap, nameMap] = await Promise.all([
+        getDoc(doc(db, "weekly_results", docId)),
+        fetchDisplayNameMap(),
+      ]);
       if (!snap.exists()) {
         setData(null);
         return;
@@ -76,7 +80,7 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
       const winners = winnersNorm.map((w) => {
         const s = standings.find((x) => x.uid === w.uid);
         return {
-          displayName: w.displayName,
+          displayName: nameMap.get(w.uid) || w.displayName,
           correctPicks: s?.wins ?? null,
           tieBreaker: s?.tieBreaker ?? null,
         };

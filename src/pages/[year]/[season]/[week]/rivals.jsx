@@ -6,6 +6,7 @@ import { collection, collectionGroup, getDocs, orderBy, query, where } from "fir
 import Image from "next/image";
 import Head from "next/head";
 import { Swords } from "lucide-react";
+import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const REFRESH_INTERVAL = 30_000;
@@ -63,9 +64,10 @@ export default function RivalsPage() {
       const seasontype = TYPE_MAP[season] ?? 2;
       const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
 
-      const [weeksSnap, espnData] = await Promise.all([
+      const [weeksSnap, espnData, nameMap] = await Promise.all([
         getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
         fetch(apiUrl).then((r) => r.json()),
+        fetchDisplayNameMap(),
       ]);
 
       if (cancelled) return;
@@ -77,7 +79,7 @@ export default function RivalsPage() {
         const entries = Object.entries(userData)
           .filter(([k]) => !["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey"].includes(k))
           .map(([eventID, team]) => ({ eventID, teamName: team }));
-        picks.push({ uid, displayName: userData.displayName || "Unknown", picks: entries, tieBreaker: userData.tieBreaker || "" });
+        picks.push({ uid, displayName: nameMap.get(uid) || userData.displayName || "Unknown", picks: entries, tieBreaker: userData.tieBreaker || "" });
       }
 
       const tempMap = {};
