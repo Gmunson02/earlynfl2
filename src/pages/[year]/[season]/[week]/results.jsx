@@ -44,9 +44,6 @@ export default function ScoresPage() {
   // Portrait-only: tapping a game box shows every user's pick for that game
   const [selectedGameID, setSelectedGameID] = useState(null);
 
-  // Portrait-only: head-to-head compare modal ({ a: uid, b: uid } or null)
-  const [compare, setCompare] = useState(null);
-
   const pollTimer = useRef(null);
   const isFirstLoad = useRef(true);
 
@@ -423,18 +420,6 @@ export default function ScoresPage() {
                       <span className="inline-flex items-center gap-1">
                         {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         {truncate14(entry.displayName)}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const opponent =
-                              submissions.find((s) => s.rank === 1 && s.uid !== entry.uid) ||
-                              submissions.find((s) => s.uid !== entry.uid);
-                            setCompare({ a: entry.uid, b: opponent?.uid || entry.uid });
-                          }}
-                          className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-[10px] font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300"
-                        >
-                          vs
-                        </button>
                       </span>
                     </td>
                     <td className={`w-[56px] px-2 py-1 text-center ${rowBg} ${borderClass}`}>
@@ -607,115 +592,6 @@ export default function ScoresPage() {
         );
       })()}
 
-      {/* Portrait-only: head-to-head compare for the current week */}
-      {compare && (() => {
-        const userA = submissions.find((s) => s.uid === compare.a);
-        const userB = submissions.find((s) => s.uid === compare.b);
-        if (!userA || !userB) return null;
-
-        const picksA = new Map(userA.picks.map((p) => [p.eventID, p.teamName]));
-        const picksB = new Map(userB.picks.map((p) => [p.eventID, p.teamName]));
-        const otherUsers = submissions.filter((s) => s.uid !== compare.a);
-
-        const diverging = uniqueEventIDs.filter((id) => picksA.get(id) !== picksB.get(id));
-
-        let aRightCount = 0;
-        let bRightCount = 0;
-        for (const id of diverging) {
-          if (winners[id] === picksA.get(id)) aRightCount++;
-          if (winners[id] === picksB.get(id)) bRightCount++;
-        }
-
-        const labelFor = (g, pickTeam, pickedHome) =>
-          pickTeam ? (pickedHome ? g?.home?.abbr : g?.away?.abbr) : "—";
-
-        return (
-          <div
-            className="sm:hidden fixed inset-0 z-[60] flex items-end bg-black/50"
-            onClick={() => setCompare(null)}
-          >
-            <div
-              className="w-full max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-bold text-lg">
-                  {truncate14(userA.displayName)} vs {truncate14(userB.displayName)}
-                </div>
-                <button
-                  onClick={() => setCompare(null)}
-                  className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-zinc-800 text-sm font-semibold"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="mb-3">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Compare against</label>
-                <select
-                  value={compare.b}
-                  onChange={(e) => setCompare({ ...compare, b: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1.5 text-sm"
-                >
-                  {otherUsers.map((s) => (
-                    <option key={s.uid} value={s.uid}>
-                      {s.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between mb-3 rounded-md bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm">
-                <span>
-                  {diverging.length === 0
-                    ? "Same picks on every game this week."
-                    : `${diverging.length} game${diverging.length === 1 ? "" : "s"} where picks differ`}
-                </span>
-                {diverging.length > 0 && (
-                  <span className="font-mono font-bold">
-                    {aRightCount} - {bRightCount}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {diverging.map((id) => {
-                  const g = eventMap[id];
-                  const pickA = picksA.get(id);
-                  const pickB = picksB.get(id);
-                  const pickedHomeA = g?.home?.abbr === pickA || g?.home?.short === pickA;
-                  const pickedHomeB = g?.home?.abbr === pickB || g?.home?.short === pickB;
-                  const isDecided = g?.status === "post";
-                  const correctA = winners[id] === pickA;
-                  const correctB = winners[id] === pickB;
-                  const colorFor = (correct) =>
-                    !isDecided
-                      ? "bg-slate-100 dark:bg-zinc-800"
-                      : correct
-                      ? "bg-green-200 dark:bg-green-300 text-gray-900"
-                      : "bg-red-200 dark:bg-red-300 text-gray-900";
-
-                  return (
-                    <div key={id} className="rounded-md overflow-hidden border border-gray-200 dark:border-zinc-700">
-                      <div className="px-2 py-1 text-[10px] text-gray-500 dark:text-gray-400 bg-slate-50 dark:bg-zinc-800/50">
-                        {g?.away?.abbr} @ {g?.home?.abbr}
-                      </div>
-                      <div className={`flex items-center justify-between px-3 py-1.5 ${colorFor(correctA)}`}>
-                        <span className="text-xs opacity-70">{truncate14(userA.displayName)}</span>
-                        <span className="font-mono font-bold">{labelFor(g, pickA, pickedHomeA)}</span>
-                      </div>
-                      <div className={`flex items-center justify-between px-3 py-1.5 ${colorFor(correctB)}`}>
-                        <span className="text-xs opacity-70">{truncate14(userB.displayName)}</span>
-                        <span className="font-mono font-bold">{labelFor(g, pickB, pickedHomeB)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
