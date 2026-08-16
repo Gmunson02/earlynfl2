@@ -298,21 +298,21 @@ export default function Dashboard() {
             disabled={!seasonYear || !seasonType || !routeWeekResultsThis}
           />
           <ActionButton
-            onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
-            icon={Clock}
-            label="Last Week’s Results"
-          />
-          <ActionButton
-            onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
-            icon={PlayCircle}
-            label="Matchups"
-            disabled={!seasonYear || !seasonType || !routeWeekPicks}
-          />
-          <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "rivals"))}
             icon={Swords}
             label="Rivals"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
+          />
+          <ActionButton
+            onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
+            icon={PlayCircle}
+            label="Game Center"
+            disabled={!seasonYear || !seasonType || !routeWeekPicks}
+          />
+          <ActionButton
+            onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
+            icon={Clock}
+            label="Last Week’s Results"
           />
           <ActionButton
             onClick={() => router.push("/leaderboard")}

@@ -35,7 +35,7 @@ export default function BottomNav() {
     { label: "Home", href: "/dashboard", icon: Home, ready: true },
     { label: "Picks", href: picksHref, icon: List, ready: !!picksHref },
     { label: "Results", href: resultsHref, icon: Trophy, ready: !!resultsHref },
-    { label: "Matchups", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
+    { label: "Game Center", href: matchupsHref, icon: PlayCircle, ready: !!matchupsHref },
     { label: "Settings", href: "/profile", icon: Settings, ready: true },
   ];
 

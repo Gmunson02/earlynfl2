@@ -159,6 +159,8 @@ export default function RivalsPage() {
     return { picksA, picksB, diverging, aRight, bRight };
   }, [userA, userB, uniqueEventIDs, winners]);
 
+  const sortedByRank = useMemo(() => [...submissions].sort((a, b) => a.rank - b.rank), [submissions]);
+
   if (loading) return <div className="p-6 text-center">Loading...</div>;
 
   const labelFor = (g, pickTeam, pickedHome) => (pickTeam ? (pickedHome ? g?.home?.abbr : g?.away?.abbr) : "—");
@@ -185,9 +187,9 @@ export default function RivalsPage() {
             onChange={(e) => setUidA(e.target.value)}
             className="mt-1 w-full rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
           >
-            {submissions.map((s) => (
+            {sortedByRank.map((s) => (
               <option key={s.uid} value={s.uid}>
-                {s.displayName} ({s.winnerCount} wins)
+                #{s.rank} {s.displayName} ({s.winnerCount} wins)
               </option>
             ))}
           </select>
@@ -199,9 +201,9 @@ export default function RivalsPage() {
             onChange={(e) => setUidB(e.target.value)}
             className="mt-1 w-full rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm"
           >
-            {submissions.map((s) => (
+            {sortedByRank.map((s) => (
               <option key={s.uid} value={s.uid}>
-                {s.displayName} ({s.winnerCount} wins)
+                #{s.rank} {s.displayName} ({s.winnerCount} wins)
               </option>
             ))}
           </select>
@@ -213,13 +215,23 @@ export default function RivalsPage() {
           <section className="max-w-4xl mx-auto mb-6 rounded-xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 px-4 py-3">
             <div className="flex items-center justify-between text-sm sm:text-base">
               <div>
-                <span className="font-bold">{truncate14(userA.displayName)}</span>
-                <span className="text-gray-500 dark:text-gray-400"> — Rank #{userA.rank}, {userA.winnerCount} wins</span>
+                <div className="font-bold">{truncate14(userA.displayName)}</div>
+                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
+                  Rank #{userA.rank}, {userA.winnerCount} wins
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
+                  Tiebreaker: {userA.tieBreaker || "—"}
+                </div>
               </div>
               <Swords size={18} className="opacity-60 shrink-0 mx-2" />
               <div className="text-right">
-                <span className="font-bold">{truncate14(userB.displayName)}</span>
-                <span className="text-gray-500 dark:text-gray-400"> — Rank #{userB.rank}, {userB.winnerCount} wins</span>
+                <div className="font-bold">{truncate14(userB.displayName)}</div>
+                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
+                  Rank #{userB.rank}, {userB.winnerCount} wins
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm">
+                  Tiebreaker: {userB.tieBreaker || "—"}
+                </div>
               </div>
             </div>
             <div className="mt-2 text-center text-sm">
