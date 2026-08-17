@@ -20,12 +20,20 @@ export default function GuestPage() {
   const [saving, setSaving] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
-  // No redirect here — arriving with no session yet is the normal case now.
-  // We just track it in case someone already has one (e.g. came back via Back button).
+  // Arriving with no session is the normal case. But if someone already has a
+  // real (non-anonymous) session — e.g. a stale bookmark/tab from before they
+  // signed up — send them straight to the dashboard instead of letting them
+  // spin up an unrelated guest account on top of their real one.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (u && !u.isAnonymous) {
+        router.replace("/dashboard");
+        return;
+      }
+      setUser(u);
+    });
     return unsub;
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

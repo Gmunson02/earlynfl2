@@ -10,10 +10,11 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 initializeApp();
 const db = getFirestore();
 
-const DEFAULT_YEAR = 2025;
+const DEFAULT_YEAR = 2026;
 const DEFAULT_SEASON = "reg"; // "pre" | "reg" | "post"
 const DEFAULT_WEEK = 1;       // start at regular season week 1
 const MAX_WEEKS = 18;
+const MAX_PRESEASON_WEEKS = 4; // Hall of Fame Weekend + 3 preseason weeks
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const ESPN_URL = (y, w, type) =>
@@ -180,16 +181,23 @@ exports.computeWeeklyWinners = onSchedule(
   },
   async () => {
     const results = [];
-    for (let w = 1; w <= MAX_WEEKS; w++) {
-      const id = `${DEFAULT_YEAR}-${DEFAULT_SEASON}-W${w}`;
-      const exists = (await db.collection("weekly_results").doc(id).get()).exists;
-      if (exists) continue;
+    const seasons = [
+      { season: "pre", maxWeek: MAX_PRESEASON_WEEKS },
+      { season: DEFAULT_SEASON, maxWeek: MAX_WEEKS },
+    ];
 
-      try {
-        const out = await computeWeek(DEFAULT_YEAR, DEFAULT_SEASON, w);
-        if (out?.computed) results.push({ week: w, winners: out.winners });
-      } catch (e) {
-        console.error(`Week ${w} compute failed:`, e);
+    for (const { season, maxWeek } of seasons) {
+      for (let w = 1; w <= maxWeek; w++) {
+        const id = `${DEFAULT_YEAR}-${season}-W${w}`;
+        const exists = (await db.collection("weekly_results").doc(id).get()).exists;
+        if (exists) continue;
+
+        try {
+          const out = await computeWeek(DEFAULT_YEAR, season, w);
+          if (out?.computed) results.push({ season, week: w, winners: out.winners });
+        } catch (e) {
+          console.error(`${season} week ${w} compute failed:`, e);
+        }
       }
     }
     console.log("Scheduled run results:", results);
@@ -198,7 +206,7 @@ exports.computeWeeklyWinners = onSchedule(
 );
 
 // ---------- HTTP trigger: public + CORS ----------
-// Defaults to 2025 • preseason • week 2 if no params are provided.
+// Defaults to 2026 • regular season if no params are provided.
 exports.computeWeeklyWinnersNow = onRequest(
   { region: "us-central1", invoker: "public", secrets: [ADMIN_KEY] },
   async (req, res) => {
