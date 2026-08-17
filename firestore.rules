@@ -12,20 +12,57 @@ service cloud.firestore {
       return weekKey.matches('^[0-9]{4}-pre-W[0-9]+$');
     }
 
+    // True if users/{profileId} is a Family Member profile owned by the
+    // caller (i.e. request.auth.uid manages it, even though it has no
+    // Firebase Auth session of its own). Uses .get(key, default) since
+    // most users/{uid} docs have no managedBy field at all.
+    function isManagedBy(profileId) {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/users/$(profileId)) &&
+             get(/databases/$(database)/documents/users/$(profileId)).data.get('managedBy', null) == request.auth.uid;
+    }
+
     // ----------------------------
     // Profiles
+    // Family Members are extra docs in this same collection, tagged
+    // managedBy: <ownerUid>, instead of having their own Auth session.
     // ----------------------------
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+
+      // Self-registration (real or guest account).
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && !("managedBy" in request.resource.data);
+
+      // Family Member profile creation — by the owner, or by an admin on
+      // anyone's behalf.
+      allow create: if request.auth != null
+                    && "managedBy" in request.resource.data
+                    && (request.resource.data.managedBy == request.auth.uid || isAdmin())
+                    && request.resource.data.managedBy != userId
+                    && request.resource.data.displayName is string
+                    && request.resource.data.displayName.size() > 0
+                    && request.resource.data.displayName.size() <= 40
+                    && request.resource.data.keys().hasOnly(['displayName','theme','isGuest','managedBy']);
 
       allow update: if request.auth != null
-                    && (request.auth.uid == userId || isAdmin())
-                    && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest'])
+                    && (
+                         request.auth.uid == userId ||
+                         isAdmin() ||
+                         resource.data.get('managedBy', null) == request.auth.uid
+                       )
+                    && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest','managedBy'])
                     && request.resource.data.displayName is string
-                    && request.resource.data.displayName.size() <= 40;
+                    && request.resource.data.displayName.size() <= 40
+                    // managedBy is immutable after create — no reassignment path
+                    && request.resource.data.get('managedBy', null) == resource.data.get('managedBy', null);
 
-      allow create: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null
+                    && (
+                         isAdmin() ||
+                         resource.data.get('managedBy', null) == request.auth.uid
+                       );
     }
 
     // ----------------------------
@@ -42,7 +79,7 @@ service cloud.firestore {
         allow write: if request.auth != null
                      && (
                        isAdmin() ||
-                       (request.auth.uid == userId && (
+                       ((request.auth.uid == userId || isManagedBy(userId)) && (
                          isPreseasonWeek(weekKey) ||
                          request.time < get(/databases/$(database)/documents/week_locks/$(weekKey)).data.locksAt ||
                          // Admin-granted temporary unlock (e.g. "5 minutes late" calls)

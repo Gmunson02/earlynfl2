@@ -9,13 +9,15 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
   Timestamp,
 } from "firebase/firestore";
 import useIsAdmin from "../hooks/useIsAdmin";
-import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users } from "lucide-react";
+import RenameModal from "../components/RenameModal";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users, Home, Trash2 } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
 const SITE_URL = "https://www.earlynfl.com";
@@ -172,12 +174,12 @@ function EditPicksModal({ uid, displayName, week, onClose }) {
   );
 }
 
-// ---- Registered users modal (excludes guests) ----
+// ---- Registered users modal (excludes guests and Family Member profiles) ----
 function RegisteredUsersModal({ users, onClose }) {
   const registered = useMemo(
     () =>
       users
-        .filter((u) => !u.isGuest)
+        .filter((u) => !u.isGuest && !u.managedBy)
         .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
     [users]
   );
@@ -234,6 +236,191 @@ function RegisteredUsersModal({ users, onClose }) {
   );
 }
 
+// ---- Family Members modal: grouped by owner, admin can add/rename/remove
+// a profile on anyone's behalf ----
+function FamilyMembersModal({ users, onAdd, onRename, onRemove, onClose }) {
+  const familyGroups = useMemo(() => {
+    const owners = new Map();
+    users.forEach((u) => {
+      if (!u.managedBy) return;
+      if (!owners.has(u.managedBy)) {
+        const ownerDoc = users.find((o) => o.uid === u.managedBy);
+        owners.set(u.managedBy, { owner: ownerDoc || { uid: u.managedBy, displayName: "(unknown)" }, members: [] });
+      }
+      owners.get(u.managedBy).members.push(u);
+    });
+    return [...owners.values()]
+      .map((g) => ({
+        ...g,
+        members: [...g.members].sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
+      }))
+      .sort((a, b) => (a.owner.displayName || "").localeCompare(b.owner.displayName || ""));
+  }, [users]);
+
+  const realUsers = useMemo(
+    () => [...users].filter((u) => !u.managedBy).sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
+    [users]
+  );
+
+  const [renamingMember, setRenamingMember] = useState(null); // {uid, displayName} | null
+  const [removingMember, setRemovingMember] = useState(null); // {uid, displayName} | null
+  const [removing, setRemoving] = useState(false);
+  const [addOwnerUid, setAddOwnerUid] = useState("");
+  const [newMemberName, setNewMemberName] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const handleAdd = async () => {
+    const trimmed = newMemberName.trim();
+    if (!trimmed || !addOwnerUid) return;
+    setAdding(true);
+    try {
+      await onAdd(addOwnerUid, trimmed);
+      setNewMemberName("");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!removingMember) return;
+    setRemoving(true);
+    try {
+      await onRemove(removingMember.uid);
+      setRemovingMember(null);
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between shrink-0">
+          <h2 className="font-bold text-lg">Family Members</h2>
+          <button onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5 space-y-5">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+            <div className="text-sm font-semibold">Add a family member</div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={addOwnerUid}
+                onChange={(e) => setAddOwnerUid(e.target.value)}
+                className="flex-1 p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+              >
+                <option value="">Choose owner…</option>
+                {realUsers.map((u) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.displayName || u.uid}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                placeholder="Family member's name"
+                maxLength={40}
+                className="flex-1 p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+              />
+              <button
+                onClick={handleAdd}
+                disabled={adding || !addOwnerUid || !newMemberName.trim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg disabled:opacity-50 whitespace-nowrap"
+              >
+                {adding ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </div>
+
+          {familyGroups.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No family members yet.</p>
+          ) : (
+            familyGroups.map((group) => (
+              <div
+                key={group.owner.uid}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                <div className="bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-sm font-semibold">
+                  {group.owner.displayName || group.owner.uid}'s Family
+                  {group.owner.email && (
+                    <span className="ml-2 font-normal text-zinc-500 dark:text-zinc-400">
+                      ({group.owner.email})
+                    </span>
+                  )}
+                </div>
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {group.members.map((m) => (
+                    <div key={m.uid} className="flex items-center justify-between px-3 py-2">
+                      <span>{m.displayName || "—"}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setRenamingMember(m)}
+                          title="Rename"
+                          className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                        >
+                          <UserPen size={15} />
+                        </button>
+                        <button
+                          onClick={() => setRemovingMember(m)}
+                          title="Remove"
+                          className="p-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-red-600 dark:text-red-400"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {renamingMember && (
+        <RenameModal
+          uid={renamingMember.uid}
+          currentName={renamingMember.displayName}
+          title="Rename Family Member"
+          onSave={onRename}
+          onClose={() => setRenamingMember(null)}
+        />
+      )}
+
+      {removingMember && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h2 className="font-bold text-lg">Remove Family Member</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Remove <span className="font-semibold">{removingMember.displayName}</span>? This cannot be undone.
+              Past picks and results will remain visible under their name.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setRemovingMember(null)}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg disabled:opacity-50"
+              >
+                {removing ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Invite new user modal ----
 function InviteUserModal({ onClose }) {
   const mailtoHref = `mailto:?subject=${encodeURIComponent(INVITE_SUBJECT)}&body=${encodeURIComponent(INVITE_BODY)}`;
@@ -286,74 +473,6 @@ function InviteUserModal({ onClose }) {
   );
 }
 
-// ---- Rename user modal ----
-function RenameUserModal({ uid, currentName, onSave, onClose }) {
-  const [value, setValue] = useState(currentName || "");
-  const [saving, setSaving] = useState(false);
-
-  const trimmed = value.trim();
-  const unchanged = trimmed === (currentName || "").trim();
-
-  const handleSave = async () => {
-    if (!trimmed || unchanged) return;
-    setSaving(true);
-    await onSave(uid, trimmed);
-    setSaving(false);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm">
-        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between">
-          <h2 className="font-bold text-lg">Rename User</h2>
-          <button onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Current name</label>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{currentName || "—"}</p>
-          </div>
-
-          <div>
-            <label htmlFor="renameInput" className="block text-sm font-medium mb-1">
-              New display name
-            </label>
-            <input
-              id="renameInput"
-              type="text"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              maxLength={40}
-              autoFocus
-              className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !trimmed || unchanged}
-              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save Name"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ---- Editable ledger cell ----
 function EditableCell({ value, onSave, type = "text", width = "w-24" }) {
   const [local, setLocal] = useState(value ?? "");
@@ -387,6 +506,7 @@ export default function AdminPage() {
   const [expandedUids, setExpandedUids] = useState(new Set());
   const [invitingUser, setInvitingUser] = useState(false);
   const [showRegisteredUsers, setShowRegisteredUsers] = useState(false);
+  const [showFamilyMembers, setShowFamilyMembers] = useState(false);
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
@@ -485,6 +605,27 @@ export default function AdminPage() {
     }
   }, []);
 
+  const addFamilyMember = useCallback(async (ownerUid, displayName) => {
+    try {
+      const ref = doc(collection(db, "users"));
+      await setDoc(ref, { displayName, managedBy: ownerUid, isGuest: true, theme: "light" });
+      setUsers((prev) => [...prev, { uid: ref.id, displayName, managedBy: ownerUid, isGuest: true, theme: "light" }]);
+    } catch (err) {
+      console.error("Add family member failed:", err);
+      alert("Failed to add family member — see console.");
+    }
+  }, []);
+
+  const removeFamilyMember = useCallback(async (uid) => {
+    try {
+      await deleteDoc(doc(db, "users", uid));
+      setUsers((prev) => prev.filter((u) => u.uid !== uid));
+    } catch (err) {
+      console.error("Remove family member failed:", err);
+      alert("Failed to remove family member — see console.");
+    }
+  }, []);
+
   const unlockUser = useCallback(
     async (uid, minutes = 30) => {
       if (!weekKey) return;
@@ -518,6 +659,13 @@ export default function AdminPage() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
             >
               <Users size={16} /> Registered Users
+            </button>
+
+            <button
+              onClick={() => setShowFamilyMembers(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
+            >
+              <Home size={16} /> Family Members
             </button>
 
             <button
@@ -601,10 +749,16 @@ export default function AdminPage() {
                     <tr key={u.uid} className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}>
                       <td className="px-3 py-2 font-semibold whitespace-nowrap">
                         {u.displayName || "—"}
-                        {u.isGuest && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
-                            guest
+                        {u.managedBy ? (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-bold">
+                            family
                           </span>
+                        ) : (
+                          u.isGuest && (
+                            <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
+                              guest
+                            </span>
+                          )
                         )}
                       </td>
                       <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
@@ -707,10 +861,16 @@ export default function AdminPage() {
                     <span className="flex items-center gap-2 font-semibold">
                       {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                       {u.displayName || "—"}
-                      {u.isGuest && (
-                        <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
-                          guest
+                      {u.managedBy ? (
+                        <span className="text-[10px] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-bold">
+                          family
                         </span>
+                      ) : (
+                        u.isGuest && (
+                          <span className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-bold">
+                            guest
+                          </span>
+                        )
                       )}
                     </span>
                     {submitted ? (
@@ -830,7 +990,7 @@ export default function AdminPage() {
       )}
 
       {renamingUser && (
-        <RenameUserModal
+        <RenameModal
           uid={renamingUser.uid}
           currentName={renamingUser.displayName}
           onSave={saveDisplayName}
@@ -842,6 +1002,16 @@ export default function AdminPage() {
 
       {showRegisteredUsers && (
         <RegisteredUsersModal users={users} onClose={() => setShowRegisteredUsers(false)} />
+      )}
+
+      {showFamilyMembers && (
+        <FamilyMembersModal
+          users={users}
+          onAdd={addFamilyMember}
+          onRename={saveDisplayName}
+          onRemove={removeFamilyMember}
+          onClose={() => setShowFamilyMembers(false)}
+        />
       )}
     </div>
   );

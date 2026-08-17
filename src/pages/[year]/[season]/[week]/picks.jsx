@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 import Image from "next/image";
 import { Unlock, Info } from "lucide-react";
 import { getScoreboard } from "../../../../lib/espnScoreboard";
@@ -73,6 +73,11 @@ export default function PicksPage({ year, week, season, matchups }) {
   const hasHydrated = useRef(false);
   const autoSaveTimer = useRef(null);
 
+  // Family Members: submitting picks on someone else's behalf from your
+  // own login. null actingId = "Me"; otherwise a family member's doc id.
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [actingId, setActingId] = useState(null);
+
   // NEW: controls whether we are still before the earliest game’s kickoff
   const [isBeforeKickoff, setIsBeforeKickoff] = useState(true);
 
@@ -104,32 +109,40 @@ export default function PicksPage({ year, week, season, matchups }) {
   const isPreseason = season === "pre";
   const picksOpen = isBeforeKickoff || isPreseason;
 
+  // Loads picks + profile for whichever identity is acting (yourself, or a
+  // family member you manage) — id is a Firebase Auth uid for "Me", or a
+  // family member's users/{profileId} doc id.
+  const loadPicksFor = async (id) => {
+    const weekRef = doc(db, "picks", id, "weeks", todayKey);
+    const weekSnap = await getDoc(weekRef);
+
+    const userRef = doc(db, "users", id);
+    const userSnap = await getDoc(userRef);
+    setUserProfile(userSnap.exists() ? userSnap.data() : null);
+
+    if (weekSnap.exists()) {
+      const pickData = weekSnap.data();
+      setPicks(pickData);
+      setTieBreaker(pickData.tieBreaker || "");
+      setSubmitted(pickData.locked === true);
+      setSubmittedAt(pickData.submittedAt || null);
+      setLastEditedAt(pickData.lastEditedAt || pickData.submittedAt || null); // prefer lastEditedAt
+    } else {
+      setPicks({});
+      setTieBreaker("");
+      setSubmitted(false);
+      setSubmittedAt(null);
+      setLastEditedAt(null);
+    }
+  };
+
   useEffect(() => {
     hasHydrated.current = false;
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      setActingId(null); // reset to "Me" whenever the auth session changes
       if (u) {
-        const weekRef = doc(db, "picks", u.uid, "weeks", todayKey);
-        const weekSnap = await getDoc(weekRef);
-
-        const userRef = doc(db, "users", u.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) setUserProfile(userSnap.data());
-
-        if (weekSnap.exists()) {
-          const pickData = weekSnap.data();
-          setPicks(pickData);
-          setTieBreaker(pickData.tieBreaker || "");
-          setSubmitted(pickData.locked === true);
-          setSubmittedAt(pickData.submittedAt || null);
-          setLastEditedAt(pickData.lastEditedAt || pickData.submittedAt || null); // prefer lastEditedAt
-        } else {
-          setPicks({});
-          setTieBreaker("");
-          setSubmitted(false);
-          setSubmittedAt(null);
-          setLastEditedAt(null);
-        }
+        await loadPicksFor(u.uid);
       } else {
         setUserProfile(null);
         setPicks({});
@@ -142,19 +155,55 @@ export default function PicksPage({ year, week, season, matchups }) {
       hasHydrated.current = true;
     });
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayKey]);
+
+  // Family members you manage — fetched once per signed-in owner, so the
+  // "Picking as" selector only appears at all if you have any.
+  useEffect(() => {
+    if (!user?.uid) {
+      setFamilyMembers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const q = query(collection(db, "users"), where("managedBy", "==", user.uid));
+      const snap = await getDocs(q);
+      if (cancelled) return;
+      setFamilyMembers(snap.docs.map((d) => ({ id: d.id, displayName: d.data().displayName || "" })));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
+
+  const activeId = actingId || user?.uid || null;
+
+  // Switching who you're picking for: cancel any pending auto-save so it
+  // can't land on the wrong profile's doc, then load the new profile's data.
+  const handleActingChange = async (newActingId) => {
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = null;
+    }
+    hasHydrated.current = false;
+    setActingId(newActingId);
+    const targetId = newActingId || user?.uid;
+    if (targetId) await loadPicksFor(targetId);
+    hasHydrated.current = true;
+  };
 
   // Auto-save picks + tiebreaker as the user goes, so nothing is lost if
   // they get interrupted before hitting Submit. Final Submit still locks it.
   useEffect(() => {
-    if (!hasHydrated.current || !user || submitted || !picksOpen) return;
+    if (!hasHydrated.current || !activeId || submitted || !picksOpen) return;
     if (Object.keys(picks).length === 0 && !tieBreaker) return;
 
     setAutoSaveStatus("saving");
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       try {
-        const ref = doc(db, "picks", user.uid, "weeks", todayKey);
+        const ref = doc(db, "picks", activeId, "weeks", todayKey);
         const now = new Date().toISOString();
         await setDoc(
           ref,
@@ -177,7 +226,7 @@ export default function PicksPage({ year, week, season, matchups }) {
 
     return () => clearTimeout(autoSaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picks, tieBreaker]);
+  }, [picks, tieBreaker, activeId]);
 
   const handlePick = (eventId, teamName) => {
     if (submitted) return;
@@ -185,14 +234,14 @@ export default function PicksPage({ year, week, season, matchups }) {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!activeId) return;
 
     const name = userProfile?.displayName || "";
     setSubmitError(null);
 
     try {
       const now = new Date().toISOString();
-      const ref = doc(db, "picks", user.uid, "weeks", todayKey);
+      const ref = doc(db, "picks", activeId, "weeks", todayKey);
 
       // Read existing to preserve original submittedAt
       const existingSnap = await getDoc(ref);
@@ -259,13 +308,37 @@ export default function PicksPage({ year, week, season, matchups }) {
         </div>
       )}
 
+      {familyMembers.length > 0 && (
+        <div className="mb-4 max-w-xs mx-auto">
+          <label
+            htmlFor="actingAs"
+            className="block text-center text-sm font-medium text-gray-600 dark:text-gray-300 mb-1"
+          >
+            Picking as
+          </label>
+          <select
+            id="actingAs"
+            value={actingId || ""}
+            onChange={(e) => handleActingChange(e.target.value || null)}
+            className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600 text-center"
+          >
+            <option value="">Me</option>
+            {familyMembers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {userProfile?.displayName && (
         <div className="mb-4 text-center text-lg text-gray-800 dark:text-gray-200 font-medium">
-          Welcome back,&nbsp;
+          {actingId ? "Submitting picks for" : "Welcome back"},&nbsp;
           <span className="font-bold text-gray-900 dark:text-white text-xl">
             {userProfile.displayName}
-          </span>{" "}
-          👋
+          </span>
+          {!actingId && <> 👋</>}
         </div>
       )}
 
