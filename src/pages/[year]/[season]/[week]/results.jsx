@@ -586,16 +586,16 @@ export default function ScoresPage() {
       <div className="hidden sm:block max-w-8xl mx-auto overflow-x-auto pb-28">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
-          <thead className="bg-slate-800 text-white shadow-sm sticky top-0 z-20">
+          <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
               <th
-                className={`${W_USER} py-1 sticky left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}
+                className={`${W_USER} py-1 sticky top-0 left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}
                 style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
               >
                 User
               </th>
               <th
-                className={`${W_WINS} px-2 py-1 text-center font-bold sticky left-[168px] z-30 bg-slate-800 ${borderClass}`}
+                className={`${W_WINS} px-2 py-1 text-center font-bold sticky top-0 left-[168px] z-30 bg-slate-800 ${borderClass}`}
               >
                 Wins
               </th>
@@ -604,13 +604,13 @@ export default function ScoresPage() {
                 const g = eventMap[id];
                 const showScore = g?.status === "in" || g?.status === "post";
                 return (
-                  <th key={id} className={`${W_GAME} px-1 py-1 text-center font-bold ${borderClass}`}>
+                  <th key={id} className={`${W_GAME} px-1 py-1 text-center font-bold sticky top-0 z-20 bg-slate-800 ${borderClass}`}>
                     <HeaderCompact g={g} showScores={showScore} />
                   </th>
                 );
               })}
 
-              <th className={`${W_TB} px-2 py-1 text-center font-bold bg-slate-800 ${borderClass}`}>TB</th>
+              <th className={`${W_TB} px-2 py-1 text-center font-bold sticky top-0 z-20 bg-slate-800 ${borderClass}`}>TB</th>
             </tr>
           </thead>
 
