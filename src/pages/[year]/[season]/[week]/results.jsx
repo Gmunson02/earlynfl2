@@ -582,8 +582,14 @@ export default function ScoresPage() {
         </div>
       </section>
 
-      {/* Table (landscape / wide screens) */}
-      <div className="hidden sm:block max-w-8xl mx-auto overflow-x-auto pb-28">
+      {/* Table (landscape / wide screens)
+          Bounded, self-scrolling pane (both axes) rather than letting the
+          whole page scroll past it -- position: sticky on the <th> cells
+          is unreliable in WebKit (especially iOS PWA standalone mode) when
+          the vertical scroll happens on the window while only the
+          horizontal scroll is contained here; making this div the actual
+          scroll container for BOTH axes is the robust cross-browser fix. */}
+      <div className="hidden sm:block max-w-8xl mx-auto mb-28 overflow-auto max-h-[80vh]">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
