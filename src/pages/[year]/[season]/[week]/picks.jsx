@@ -77,6 +77,10 @@ export default function PicksPage({ year, week, season, matchups }) {
   // own login. null actingId = "Me"; otherwise a family member's doc id.
   const [familyMembers, setFamilyMembers] = useState([]);
   const [actingId, setActingId] = useState(null);
+  // The signed-in owner's own name, kept separate from userProfile (which
+  // reflects whichever profile is currently acting) so the "Me" option can
+  // always show it regardless of who's selected.
+  const [ownerDisplayName, setOwnerDisplayName] = useState("");
 
   // NEW: controls whether we are still before the earliest game’s kickoff
   const [isBeforeKickoff, setIsBeforeKickoff] = useState(true);
@@ -118,7 +122,8 @@ export default function PicksPage({ year, week, season, matchups }) {
 
     const userRef = doc(db, "users", id);
     const userSnap = await getDoc(userRef);
-    setUserProfile(userSnap.exists() ? userSnap.data() : null);
+    const profile = userSnap.exists() ? userSnap.data() : null;
+    setUserProfile(profile);
 
     if (weekSnap.exists()) {
       const pickData = weekSnap.data();
@@ -134,6 +139,8 @@ export default function PicksPage({ year, week, season, matchups }) {
       setSubmittedAt(null);
       setLastEditedAt(null);
     }
+
+    return profile;
   };
 
   useEffect(() => {
@@ -142,7 +149,8 @@ export default function PicksPage({ year, week, season, matchups }) {
       setUser(u);
       setActingId(null); // reset to "Me" whenever the auth session changes
       if (u) {
-        await loadPicksFor(u.uid);
+        const profile = await loadPicksFor(u.uid);
+        setOwnerDisplayName(profile?.displayName || "");
       } else {
         setUserProfile(null);
         setPicks({});
@@ -322,7 +330,7 @@ export default function PicksPage({ year, week, season, matchups }) {
             onChange={(e) => handleActingChange(e.target.value || null)}
             className="w-full border px-3 py-2 rounded dark:bg-gray-700 dark:border-gray-600 text-center"
           >
-            <option value="">Me</option>
+            <option value="">Me{ownerDisplayName ? ` (${ownerDisplayName})` : ""}</option>
             {familyMembers.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.displayName}
