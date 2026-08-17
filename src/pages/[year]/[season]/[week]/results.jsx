@@ -11,6 +11,11 @@ import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const MAX_SCENARIO_GAMES = 4;
 
+// A decided game with equal scores is a tie — no winner gets recorded for
+// it, so nobody's pick counts as correct or incorrect for that game.
+const isGameTied = (g) =>
+  g?.status === "post" && g?.homeScore != null && g?.awayScore != null && g.homeScore === g.awayScore;
+
 // Reusable widths so table scrolls instead of crushing cells
 const W_USER = "w-[168px] min-w-[168px]";     // ~14ch
 const W_WINS = "w-[56px]  min-w-[56px]";
@@ -637,7 +642,13 @@ export default function ScoresPage() {
                       ? { logo: g?.home?.logo, label: g?.home?.abbr }
                       : { logo: g?.away?.logo, label: g?.away?.abbr };
                     const isPending = g?.status !== "post";
-                    const bgColor = isPending ? "" : correct ? "bg-green-200" : "bg-red-200";
+                    const bgColor = isPending
+                      ? ""
+                      : isGameTied(g)
+                      ? "bg-blue-200"
+                      : correct
+                      ? "bg-green-200"
+                      : "bg-red-200";
 
                     return (
                       <td
@@ -748,6 +759,8 @@ export default function ScoresPage() {
                             const isPending = g?.status !== "post";
                             const bgColor = isPending
                               ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
+                              : isGameTied(g)
+                              ? "bg-blue-200 dark:bg-blue-300 text-gray-900"
                               : correct
                               ? "bg-green-200 dark:bg-green-300 text-gray-900"
                               : "bg-red-200 dark:bg-red-300 text-gray-900";
@@ -867,6 +880,8 @@ export default function ScoresPage() {
                   const correct = winners[selectedGameID] === pickTeam;
                   const rowColor = !isDecided
                     ? "bg-slate-100 dark:bg-zinc-800"
+                    : isGameTied(g)
+                    ? "bg-blue-200 dark:bg-blue-300 text-gray-900"
                     : correct
                     ? "bg-green-200 dark:bg-green-300 text-gray-900"
                     : "bg-red-200 dark:bg-red-300 text-gray-900";
