@@ -43,11 +43,11 @@ export default function SignIn() {
       if (isSignUp) {
         const fn = firstName.trim();
         const ln = lastName.trim();
-        if (!fn || !ln) {
-          setError("First Name and Last Name are required.");
+        const dn = displayName.trim();
+        if (!fn || !ln || !dn) {
+          setError("First Name, Last Name, and Display Name are required.");
           return;
         }
-        const dn = displayName.trim() || `${fn} ${ln}`;
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "users", userCred.user.uid), {
           displayName: dn,
@@ -235,6 +235,7 @@ export default function SignIn() {
                   setDisplayName(e.target.value);
                   setDisplayNameTouched(true);
                 }}
+                required
                 maxLength={40}
                 className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
               />
