@@ -52,7 +52,7 @@ service cloud.firestore {
                          isAdmin() ||
                          resource.data.get('managedBy', null) == request.auth.uid
                        )
-                    && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest','managedBy'])
+                    && request.resource.data.keys().hasOnly(['displayName','firstName','lastName','theme','isGuest','managedBy','email','createdAt'])
                     && request.resource.data.displayName is string
                     && request.resource.data.displayName.size() <= 40
                     // managedBy is immutable after create — no reassignment path
