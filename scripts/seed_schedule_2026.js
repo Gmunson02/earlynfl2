@@ -46,9 +46,11 @@ async function main() {
     weeks.push({
       id: `pre-${i}`,
       seasonType: "pre",
-      // Counting Hall of Fame Weekend as Preseason Week 1 (house convention,
-      // differs from ESPN's own labels which treat it separately)
-      label: `Preseason Week ${i + 1}`,
+      // Hall of Fame Weekend gets its own label rather than being folded
+      // into "Preseason Week 1" — beta testers found the old house
+      // convention (HOF week = Week 1) confusing since it made the real
+      // first preseason slate read as "Week 2".
+      label: i === 0 ? "Hall of Fame Weekend" : `Preseason Week ${i}`,
       value: entry.value,
       start: entry.startDate,
       end: entry.endDate,
