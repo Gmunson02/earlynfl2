@@ -1,6 +1,6 @@
 // pages/_app.js
 import "../styles/globals.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import Layout from "@/components/Layout";
@@ -19,9 +19,17 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
 function AppInner({ Component, pageProps }) {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const { setTheme } = useTheme();
   const [hasDisplayName, setHasDisplayName] = useState(false);
   const [isReady, setIsReady] = useState(false);
+
+  // Pages with their own auth/redirect logic — the global profile check
+  // below stays out of their way so the two don't fight over where to send
+  // someone (they already land on /profile via their own flows if needed).
+  const profileCheckExcluded = ["/", "/signin", "/guest", "/profile"];
+  const bottomNavExcluded = ["/", "/signin", "/guest"];
 
   // Register the Service Worker once on mount (PWA)
   useEffect(() => {
@@ -71,6 +79,22 @@ function AppInner({ Component, pageProps }) {
 
       const ref = doc(db, "users", user.uid);
 
+      // Real (non-anonymous) accounts must always have a name on file.
+      // Checked here — not just on /dashboard — so it can't be skipped by
+      // landing on some other page first after signup.
+      const requireProfile = (data) => {
+        if (user.isAnonymous) return;
+        const r = routerRef.current;
+        if (profileCheckExcluded.includes(r.pathname)) return;
+        const missing = ["firstName", "lastName", "displayName"].some(
+          (f) => !data?.[f] || !String(data[f]).trim()
+        );
+        if (missing) {
+          const from = encodeURIComponent(r.asPath || "/");
+          r.replace(`/profile?from=${from}`);
+        }
+      };
+
       // set initial values once (optional but snappy)
       try {
         const snap = await getDoc(ref);
@@ -80,6 +104,7 @@ function AppInner({ Component, pageProps }) {
             setTheme(data.theme);
           }
           setHasDisplayName(Boolean(data?.displayName));
+          requireProfile(data);
         } else {
           setHasDisplayName(false);
         }
@@ -109,8 +134,7 @@ function AppInner({ Component, pageProps }) {
     };
   }, [setTheme]);
 
-  const excludedRoutes = ["/", "/signin", "/guest"];
-  const showBottomNav = isReady && !excludedRoutes.includes(router.pathname);
+  const showBottomNav = isReady && !bottomNavExcluded.includes(router.pathname);
 
   return (
     <>

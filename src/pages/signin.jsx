@@ -15,6 +15,10 @@ export default function SignIn() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [displayNameTouched, setDisplayNameTouched] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
   const router = useRouter();
@@ -37,9 +41,18 @@ export default function SignIn() {
     setMessage(null);
     try {
       if (isSignUp) {
+        const fn = firstName.trim();
+        const ln = lastName.trim();
+        if (!fn || !ln) {
+          setError("First Name and Last Name are required.");
+          return;
+        }
+        const dn = displayName.trim() || `${fn} ${ln}`;
         const userCred = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "users", userCred.user.uid), {
-          displayName: email.split("@")[0],
+          displayName: dn,
+          firstName: fn,
+          lastName: ln,
           email,
           theme: "light",
           createdAt: new Date().toISOString(),
@@ -182,6 +195,51 @@ export default function SignIn() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isSignUp && (
+            <>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="First Name"
+                  value={firstName}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFirstName(v);
+                    if (!displayNameTouched) {
+                      setDisplayName(`${v.trim()} ${lastName.trim()}`.trim());
+                    }
+                  }}
+                  required
+                  className="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
+                />
+                <input
+                  type="text"
+                  placeholder="Last Name"
+                  value={lastName}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setLastName(v);
+                    if (!displayNameTouched) {
+                      setDisplayName(`${firstName.trim()} ${v.trim()}`.trim());
+                    }
+                  }}
+                  required
+                  className="w-1/2 p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Display Name"
+                value={displayName}
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  setDisplayNameTouched(true);
+                }}
+                maxLength={40}
+                className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:text-white"
+              />
+            </>
+          )}
           <input
             type="email"
             placeholder="Email"
