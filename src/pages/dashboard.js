@@ -225,9 +225,6 @@ export default function Dashboard() {
             <p className="text-base sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
               {displayLabel || (value ? `Week ${value}` : "Week —")}
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              NFL {seasonYear ?? "—"} • {seasonType ? seasonType.toUpperCase() : "—"}
-            </p>
           </div>
 
           {/* Countdown */}
@@ -237,7 +234,7 @@ export default function Dashboard() {
               {loading ? "…" : countdown}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Time until the first game of this week
+              Picks lock at kickoff of the first game
             </p>
           </div>
 
