@@ -7,6 +7,7 @@ import Image from "next/image";
 import Head from "next/head";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
+import useWeekLabel from "../../../../hooks/useWeekLabel";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const MAX_SCENARIO_GAMES = 4;
@@ -25,6 +26,7 @@ const W_TB   = "w-[72px]  min-w-[72px]";
 export default function ScoresPage() {
   const router = useRouter();
   const { year, week, season } = router.query;
+  const weekLabel = useWeekLabel(year, season, week);
 
   const [state, setState] = useState({
     loading: true,
@@ -540,13 +542,13 @@ export default function ScoresPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
       <Head>
-        <title>{(season || "reg").toUpperCase()} • Week {week} Scores</title>
+        <title>{weekLabel || `Week ${week}`} Scores</title>
       </Head>
 
       {/* Header (same width feel as table via centered container) */}
       <section className="max-w-8xl mx-auto mb-4 px-1 sm:px-0">
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-           Week {week}
+          {weekLabel || `Week ${week}`}
         </h1>
 
         <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">

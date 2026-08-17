@@ -8,6 +8,7 @@ import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import GameDetailModal from "../../../../components/GameDetailModal";
+import useWeekLabel from "../../../../hooks/useWeekLabel";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const DOWN_NAMES = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th" };
@@ -26,6 +27,8 @@ export default function GameCenter() {
     const v = String(s || "").toLowerCase();
     return v === "pre" || v === "reg" || v === "post" ? v : "reg";
   }, [seasonRaw]);
+
+  const weekLabel = useWeekLabel(year, season, week);
 
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -241,16 +244,14 @@ export default function GameCenter() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-gradient-to-tr dark:from-gray-950 dark:to-gray-900 text-zinc-900 dark:text-white px-6 py-4 pb-32">
       <Head>
-        <title>
-          Game Center | {String(year)} {season.toUpperCase()} • Week {String(week)}
-        </title>
+        <title>Game Center | {weekLabel || `Week ${String(week)}`}</title>
       </Head>
 
       <div className="max-w-5xl mx-auto">
         <header className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-extrabold">
-             Week {String(week)}
+              {weekLabel || `Week ${String(week)}`}
             </h1>
             {lastUpdated && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">

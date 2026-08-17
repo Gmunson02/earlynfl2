@@ -219,10 +219,14 @@ export default function ComparePage() {
   const labelFor = (g, pickTeam, pickedHome) => (pickTeam ? (pickedHome ? g?.home?.abbr : g?.away?.abbr) : "—");
   const logoFor = (g, pickTeam, pickedHome) => (pickTeam ? (pickedHome ? g?.home?.logo : g?.away?.logo) : null);
 
+  const currentWeekDoc = weeksList.find(
+    (w) => String(w.seasonYear) === String(year) && w.seasonType === season && String(w.value) === String(week)
+  );
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
       <Head>
-        <title>Compare • Week {week}</title>
+        <title>Compare • {currentWeekDoc?.label || `Week ${week}`}</title>
       </Head>
 
       <section className="max-w-4xl mx-auto mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -230,14 +234,16 @@ export default function ComparePage() {
           <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-extrabold tracking-tight">
             <ArrowLeftRight size={30} /> Compare
           </h1>
-          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">Week {week} head-to-head</div>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {currentWeekDoc?.label || `Week ${week}`} head-to-head
+          </div>
         </div>
 
         {weeksList.length > 0 && (
           <div>
             <label className="text-xs text-gray-500 dark:text-gray-400">Week</label>
             <select
-              value={weeksList.find((w) => String(w.seasonYear) === String(year) && w.seasonType === season && String(w.value) === String(week))?.id || ""}
+              value={currentWeekDoc?.id || ""}
               onChange={(e) => {
                 const w = weeksList.find((x) => x.id === e.target.value);
                 if (w) router.push(`/${w.seasonYear}/${w.seasonType}/${w.value}/rivals`);
