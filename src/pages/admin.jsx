@@ -750,12 +750,14 @@ export default function AdminPage() {
               <Home size={16} /> Family Members
             </button>
 
+            {/* Not used this season.
             <button
               onClick={() => setInvitingUser(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold"
             >
               <UserPlus size={16} /> Invite New User
             </button>
+            */}
 
             {weeksList.length > 0 && (
               <select
