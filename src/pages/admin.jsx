@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { db, functions } from "../lib/firebase";
+import { auth, db, functions } from "../lib/firebase";
+import { sendPasswordResetEmail } from "firebase/auth";
 import {
   collection,
   collectionGroup,
@@ -176,7 +177,7 @@ function EditPicksModal({ uid, displayName, week, onClose }) {
 }
 
 // ---- Registered users modal (excludes guests and Family Member profiles) ----
-function RegisteredUsersModal({ users, onClose }) {
+function RegisteredUsersModal({ users, authInfo, onClose }) {
   const registered = useMemo(
     () =>
       users
@@ -193,7 +194,7 @@ function RegisteredUsersModal({ users, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
         <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between shrink-0">
           <h2 className="font-bold text-lg">Registered Users ({registered.length})</h2>
           <button onClick={onClose} aria-label="Close">
@@ -213,6 +214,7 @@ function RegisteredUsersModal({ users, onClose }) {
                   <th className="text-left px-3 py-2">Last Name</th>
                   <th className="text-left px-3 py-2">Email</th>
                   <th className="text-left px-3 py-2">Date Registered</th>
+                  <th className="text-left px-3 py-2">Last Login</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,10 +228,145 @@ function RegisteredUsersModal({ users, onClose }) {
                     <td className="px-3 py-2 whitespace-nowrap">{u.lastName || "—"}</td>
                     <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{formatDate(u.createdAt)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {formatDate(authInfo?.[u.uid]?.lastSignInTime)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Manage User modal: edit first/last/display name, plus a password
+// reset for accounts that actually have a password to reset (not guests,
+// not Google-only sign-ins). ----
+function ManageUserModal({ user, providers, onSave, onClose }) {
+  const [firstName, setFirstName] = useState(user.firstName || "");
+  const [lastName, setLastName] = useState(user.lastName || "");
+  const [displayName, setDisplayName] = useState(user.displayName || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [resetSending, setResetSending] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState(null);
+
+  const canResetPassword = !user.isGuest && !user.managedBy && !!user.email && (providers || []).includes("password");
+
+  const handleSave = async () => {
+    const dn = displayName.trim();
+    if (!dn) {
+      setError("Display Name is required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(user.uid, {
+        displayName: dn,
+        ...(user.isGuest ? {} : { firstName: firstName.trim(), lastName: lastName.trim() }),
+      });
+      onClose();
+    } catch (err) {
+      console.error("Manage user save failed:", err);
+      setError(err.message || "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetSending(true);
+    setResetError(null);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      setResetSent(true);
+    } catch (err) {
+      console.error("Password reset send failed:", err);
+      setResetError(err.message || "Failed to send reset email.");
+    } finally {
+      setResetSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-sm">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-5 py-3 flex items-center justify-between">
+          <h2 className="font-bold text-lg">Manage User</h2>
+          <button onClick={onClose} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!user.isGuest && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-1">First Name</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Last Name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+                />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-1">Display Name</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={40}
+              className="w-full p-2 border rounded-lg dark:bg-gray-800 dark:border-gray-600"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+
+          {canResetPassword && (
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
+              <button
+                onClick={handleResetPassword}
+                disabled={resetSending || resetSent}
+                className="w-full py-2.5 border border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-400 font-semibold rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50"
+              >
+                {resetSent ? "Reset Email Sent" : resetSending ? "Sending…" : "Send Password Reset Email"}
+              </button>
+              {resetError && <p className="text-sm text-red-500">{resetError}</p>}
+            </div>
           )}
         </div>
       </div>
@@ -565,11 +702,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [ledger, setLedger] = useState({});
+  const [authInfo, setAuthInfo] = useState({}); // uid -> { lastSignInTime, creationTime, providers }
   const [weeksList, setWeeksList] = useState([]);
   const [selectedWeekId, setSelectedWeekId] = useState(null);
   const [submittedUids, setSubmittedUids] = useState(new Set());
   const [editingUser, setEditingUser] = useState(null);
-  const [renamingUser, setRenamingUser] = useState(null);
+  const [managingUser, setManagingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
   const [expandedUids, setExpandedUids] = useState(new Set());
   const [invitingUser, setInvitingUser] = useState(false);
@@ -598,10 +736,14 @@ export default function AdminPage() {
     if (adminStatus !== "admin") return;
     const load = async () => {
       setLoading(true);
-      const [usersSnap, ledgerSnap, weeksSnap] = await Promise.all([
+      const [usersSnap, ledgerSnap, weeksSnap, authInfoResult] = await Promise.all([
         getDocs(collection(db, "users")),
         getDocs(collection(db, "admin_ledger")),
         getDocs(query(collection(db, "schedules", SEASON_ID, "weeks"), orderBy("order", "asc"))),
+        httpsCallable(functions, "adminListAuthUsers")().catch((err) => {
+          console.error("adminListAuthUsers failed:", err);
+          return { data: { users: [] } };
+        }),
       ]);
 
       const usersList = usersSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
@@ -611,6 +753,10 @@ export default function AdminPage() {
       const ledgerMap = {};
       ledgerSnap.forEach((d) => (ledgerMap[d.id] = d.data()));
       setLedger(ledgerMap);
+
+      const authInfoMap = {};
+      (authInfoResult?.data?.users || []).forEach((u) => (authInfoMap[u.uid] = u));
+      setAuthInfo(authInfoMap);
 
       const weeks = weeksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setWeeksList(weeks);
@@ -681,6 +827,11 @@ export default function AdminPage() {
     }
   }, []);
 
+  const saveUserFields = useCallback(async (uid, fields) => {
+    await setDoc(doc(db, "users", uid), fields, { merge: true });
+    setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, ...fields } : u)));
+  }, []);
+
   const addFamilyMember = useCallback(async (ownerUid, displayName) => {
     try {
       const ref = doc(collection(db, "users"));
@@ -740,7 +891,7 @@ export default function AdminPage() {
               onClick={() => setShowRegisteredUsers(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
             >
-              <Users size={16} /> Registered Users
+              <Users size={16} /> See Registered Users
             </button>
 
             <button
@@ -906,11 +1057,11 @@ export default function AdminPage() {
                             <Pencil size={15} /> Edit Picks
                           </button>
                           <button
-                            onClick={() => setRenamingUser(u)}
-                            title="Edit this user's display name"
+                            onClick={() => setManagingUser(u)}
+                            title="Manage this user's name and password"
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm whitespace-nowrap"
                           >
-                            <UserPen size={15} /> Edit Display Name
+                            <UserPen size={15} /> Manage User
                           </button>
                           <button
                             onClick={() => setDeletingUser(u)}
@@ -1056,10 +1207,10 @@ export default function AdminPage() {
                           <Pencil size={15} /> Edit Picks
                         </button>
                         <button
-                          onClick={() => setRenamingUser(u)}
+                          onClick={() => setManagingUser(u)}
                           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700"
                         >
-                          <UserPen size={15} /> Edit Display Name
+                          <UserPen size={15} /> Manage User
                         </button>
                         <button
                           onClick={() => setDeletingUser(u)}
@@ -1086,12 +1237,12 @@ export default function AdminPage() {
         />
       )}
 
-      {renamingUser && (
-        <RenameModal
-          uid={renamingUser.uid}
-          currentName={renamingUser.displayName}
-          onSave={saveDisplayName}
-          onClose={() => setRenamingUser(null)}
+      {managingUser && (
+        <ManageUserModal
+          user={managingUser}
+          providers={authInfo[managingUser.uid]?.providers}
+          onSave={saveUserFields}
+          onClose={() => setManagingUser(null)}
         />
       )}
 
@@ -1106,7 +1257,7 @@ export default function AdminPage() {
       {invitingUser && <InviteUserModal onClose={() => setInvitingUser(false)} />}
 
       {showRegisteredUsers && (
-        <RegisteredUsersModal users={users} onClose={() => setShowRegisteredUsers(false)} />
+        <RegisteredUsersModal users={users} authInfo={authInfo} onClose={() => setShowRegisteredUsers(false)} />
       )}
 
       {showFamilyMembers && (

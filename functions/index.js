@@ -288,3 +288,35 @@ exports.adminDeleteUser = onCall(
     return { success: true };
   }
 );
+
+// ---------- Admin: Auth metadata (last login, sign-in providers) ----------
+// Firestore has no idea when someone last signed in or which provider they
+// used — that only lives on the Auth user record, which only the Admin SDK
+// can read. Used by the admin page for the "Last Login" column and to know
+// whether a user can get a password-reset email (password provider only —
+// not Google, not guest/anonymous).
+exports.adminListAuthUsers = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    if (request.auth?.token?.admin !== true) {
+      throw new HttpsError("permission-denied", "Admin only.");
+    }
+
+    const out = [];
+    let nextPageToken;
+    do {
+      const page = await authAdmin.listUsers(1000, nextPageToken);
+      for (const u of page.users) {
+        out.push({
+          uid: u.uid,
+          lastSignInTime: u.metadata.lastSignInTime || null,
+          creationTime: u.metadata.creationTime || null,
+          providers: u.providerData.map((p) => p.providerId),
+        });
+      }
+      nextPageToken = page.pageToken;
+    } while (nextPageToken);
+
+    return { users: out };
+  }
+);
