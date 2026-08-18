@@ -21,6 +21,12 @@ import useWeekLabel from "../../../../hooks/useWeekLabel";
 export async function getServerSideProps(context) {
   const { year, week, season } = context.query;
 
+  // Nothing here depends on who's asking — it's the schedule and the week
+  // label, both derived purely from the URL. The user's own picks load
+  // client-side after auth. So let the CDN serve this instead of running a
+  // lambda per request, which is what made a cold first load slow.
+  context.res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=300");
+
   const typeMap = { pre: 1, reg: 2, post: 3 };
   const seasontype = typeMap[season] ?? 2; // default to regular if missing
 

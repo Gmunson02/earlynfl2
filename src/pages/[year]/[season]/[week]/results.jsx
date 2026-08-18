@@ -83,6 +83,11 @@ export async function getServerSideProps(context) {
   const { year, week, season } = context.query;
   const seasontype = TYPE_MAP[season] ?? 2;
 
+  // Identical for every viewer — the scoreboard and week label, both derived
+  // from the URL. Participant rows load client-side after auth, so there's
+  // nothing user-specific in this response and the CDN can serve it.
+  context.res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=300");
+
   try {
     const [{ data }, weekLabel] = await Promise.all([
       getScoreboard({ year, week, seasontype }),
