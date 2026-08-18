@@ -28,8 +28,10 @@ const LAST_SEASON_TYPE = "reg";
 
 // ---- hooks -------------------------------------------------
 
+// null = not resolved yet. Don't seed this with "Guest" — that renders a
+// confidently wrong greeting to signed-in users for the first moment.
 function useUserName() {
-  const [userName, setUserName] = useState("Guest");
+  const [userName, setUserName] = useState(null);
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) return setUserName("Guest");
@@ -48,10 +50,16 @@ function useUserName() {
 /**
  * Reads last week's winner given the current results week number (ESPN value).
  */
+// Returns `undefined` while still loading, `null` once we know there's no
+// result for last week, or the winner data. Callers need that distinction —
+// the last-season fallback below is expensive and shouldn't fire on the
+// "not loaded yet" null.
 function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(undefined);
 
   useEffect(() => {
+    let cancelled = false;
+
     const run = async () => {
       const wVal = Number(currentResultsWeekNumber);
       if (!wVal || !seasonYear || !seasonType) return;
@@ -62,6 +70,7 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
         getDoc(doc(db, "weekly_results", docId)),
         fetchDisplayNameMap(),
       ]);
+      if (cancelled) return; // a newer week/season landed while this was in flight
       if (!snap.exists()) {
         setData(null);
         return;
@@ -94,6 +103,9 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
     };
 
     run();
+    return () => {
+      cancelled = true;
+    };
   }, [currentResultsWeekNumber, seasonYear, seasonType]);
 
   return data;
@@ -102,11 +114,17 @@ function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
 /**
  * Fallback for the "last week's winner" slot before any current-season
  * week has been computed yet: shows last season's champion instead.
+ *
+ * Only runs when `enabled` — this pulls the whole season_leaderboard doc
+ * plus every weekly_results doc for that season (~19 reads / ~39 KB), and
+ * it used to run on every dashboard load even though the card it feeds is
+ * hidden as soon as there's a current-season winner to show.
  */
-function useLastSeasonChampion(year, season) {
+function useLastSeasonChampion(year, season, enabled) {
   const [champion, setChampion] = useState(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     loadSeasonStandingsByName(year, season).then((rows) => {
       if (alive) setChampion(rows[0] || null);
@@ -114,7 +132,7 @@ function useLastSeasonChampion(year, season) {
     return () => {
       alive = false;
     };
-  }, [year, season]);
+  }, [year, season, enabled]);
 
   return champion;
 }
@@ -174,7 +192,15 @@ export default function Dashboard() {
     seasonYear,
     seasonType
   );
-  const lastSeasonChampion = useLastSeasonChampion(LAST_SEASON_YEAR, LAST_SEASON_TYPE);
+  // Only reach for last season's champion once we actually know this
+  // season has no last-week winner to show (undefined = still loading).
+  const needsChampionFallback =
+    lastWeek !== undefined && !(lastWeek && lastWeek.winners?.length > 0);
+  const lastSeasonChampion = useLastSeasonChampion(
+    LAST_SEASON_YEAR,
+    LAST_SEASON_TYPE,
+    needsChampionFallback
+  );
 
   // Define hooks BEFORE any conditional return
   const safeYear = seasonYear ?? new Date().getFullYear();
@@ -207,7 +233,7 @@ export default function Dashboard() {
 
       <div className="max-w-5xl mx-auto">
         <header className="mb-4">
-          <h1 className="text-3xl font-extrabold">Hi, {userName}!</h1>
+          <h1 className="text-3xl font-extrabold">{userName ? `Hi, ${userName}!` : "Hi!"}</h1>
         </header>
 
         <InstallPrompt />
@@ -222,7 +248,9 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">Current Week</h2>
             <p className="text-base sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
-              {displayLabel || (value ? `Week ${value}` : "Week —")}
+              {/* Never fall back to `Week ${value}` — that's ESPN's week
+                  number, not our label (Preseason Week 2 is ESPN week 3). */}
+              {loading ? "…" : displayLabel || "—"}
             </p>
           </div>
 
