@@ -1,5 +1,5 @@
 // src/pages/dashboard.js
-import React, { useEffect, useCallback, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { onAuthStateChanged } from "firebase/auth";
@@ -46,61 +46,69 @@ function useUserName() {
 /**
  * Reads last week's winner given the current results week number (ESPN value).
  */
-function useLastWeekWinner(currentResultsWeekNumber, seasonYear, seasonType) {
-  const [data, setData] = useState(null);
+// Live display names, so a rename shows up on old results. Deliberately not
+// dependent on the schedule — it starts on mount and resolves alongside it
+// rather than queueing up behind it.
+function useDisplayNameMap() {
+  const [nameMap, setNameMap] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const wVal = Number(currentResultsWeekNumber);
-      if (!wVal || !seasonYear || !seasonType) return;
-
-      const prevWeek = Math.max(1, wVal - 1);
-      const docId = `${seasonYear}-${seasonType}-W${prevWeek}`;
-      const [snap, nameMap] = await Promise.all([
-        getDoc(doc(db, "weekly_results", docId)),
-        fetchDisplayNameMap(),
-      ]);
-      if (cancelled) return; // a newer week/season landed while this was in flight
-      if (!snap.exists()) {
-        setData(null);
-        return;
-      }
-
-      const d = snap.data();
-      const standings = Array.isArray(d.standings) ? d.standings : [];
-      const winnersRaw = Array.isArray(d.winners) ? d.winners : [];
-
-      const winnersNorm = winnersRaw.map((w) =>
-        typeof w === "string"
-          ? { uid: w, displayName: w }
-          : { uid: w.uid, displayName: w.displayName || w.uid }
-      );
-
-      const winners = winnersNorm.map((w) => {
-        const s = standings.find((x) => x.uid === w.uid);
-        return {
-          displayName: nameMap.get(w.uid) || w.displayName,
-          correctPicks: s?.wins ?? null,
-          tieBreaker: s?.tieBreaker ?? null,
-        };
+    let alive = true;
+    fetchDisplayNameMap()
+      .then((m) => alive && setNameMap(m))
+      .catch((e) => {
+        console.error("display name map failed", e);
+        if (alive) setNameMap(new Map()); // fall back to stored names
       });
-
-      setData({
-        week: prevWeek,
-        lastGameTotal: d.lastGameTotal ?? null,
-        winners,
-      });
-    };
-
-    run();
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [currentResultsWeekNumber, seasonYear, seasonType]);
+  }, []);
 
-  return data;
+  return nameMap;
+}
+
+/**
+ * Last week's winner, built from the weekly_results useScheduleWeek has
+ * already loaded. This used to issue its own getDoc, which couldn't even
+ * start until the schedule resolved — so this card always landed a beat
+ * after the other two.
+ */
+function useLastWeekWinner({ weeklyResults, value, seasonYear, seasonType, nameMap }) {
+  return useMemo(() => {
+    const wVal = Number(value);
+    if (!wVal || !seasonYear || !seasonType || !weeklyResults) return null;
+
+    const prevWeek = Math.max(1, wVal - 1);
+    const d = weeklyResults.get(`${seasonYear}-${seasonType}-W${prevWeek}`);
+    if (!d) return null;
+
+    const standings = Array.isArray(d.standings) ? d.standings : [];
+    const winnersRaw = Array.isArray(d.winners) ? d.winners : [];
+
+    const winnersNorm = winnersRaw.map((w) =>
+      typeof w === "string"
+        ? { uid: w, displayName: w }
+        : { uid: w.uid, displayName: w.displayName || w.uid }
+    );
+
+    const winners = winnersNorm.map((w) => {
+      const s = standings.find((x) => x.uid === w.uid);
+      return {
+        // Render the stored name until live names arrive, rather than
+        // holding the whole card back for them.
+        displayName: nameMap?.get(w.uid) || w.displayName,
+        correctPicks: s?.wins ?? null,
+        tieBreaker: s?.tieBreaker ?? null,
+      };
+    });
+
+    return {
+      week: prevWeek,
+      lastGameTotal: d.lastGameTotal ?? null,
+      winners,
+    };
+  }, [weeklyResults, value, seasonYear, seasonType, nameMap]);
 }
 
 // ---- UI bits -----------------------------------------------
@@ -148,16 +156,19 @@ export default function Dashboard() {
     countdown,
     prevWeekValue,
     isBeforeKickoff, // NEW
+    weeklyResults,
   } = useScheduleWeek("nfl-2026");
 
   const picksOpen = isBeforeKickoff;
 
-  const currentResultsWeekNumber = Number(value ?? "1");
-  const lastWeek = useLastWeekWinner(
-    currentResultsWeekNumber,
+  const nameMap = useDisplayNameMap();
+  const lastWeek = useLastWeekWinner({
+    weeklyResults,
+    value,
     seasonYear,
-    seasonType
-  );
+    seasonType,
+    nameMap,
+  });
   const hasLastWeekWinner = !!lastWeek && lastWeek.winners?.length > 0;
 
   // Define hooks BEFORE any conditional return

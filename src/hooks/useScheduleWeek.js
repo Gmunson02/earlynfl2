@@ -35,6 +35,11 @@ export default function useScheduleWeek(seasonId = "nfl-2026") {
     order: null,
     prevWeekValue: null,
     isBeforeKickoff: false, // true if now < firstGame
+    // Every weekly_results doc for this season, keyed by doc id. We already
+    // read these to work out the current week, so callers that need one
+    // (e.g. the dashboard's last-week winner) can take it from here instead
+    // of waiting on this hook and then issuing their own read.
+    weeklyResults: null,
   });
 
   useEffect(() => {
@@ -68,16 +73,16 @@ export default function useScheduleWeek(seasonId = "nfl-2026") {
         // week" now, not the next week's kickoff time. Otherwise the site
         // would sit on a just-finished week for days until new games start.
         const seasonYear = rows[0]?.seasonYear;
-        let computedIds = new Set();
+        const weeklyResults = new Map();
         if (seasonYear != null) {
           const resultsSnap = await getDocs(
             query(collection(db, "weekly_results"), where("year", "==", seasonYear))
           );
-          computedIds = new Set(resultsSnap.docs.map((d) => d.id));
+          resultsSnap.docs.forEach((d) => weeklyResults.set(d.id, d.data()));
         }
         const weekDocId = (w) => `${w.seasonYear}-${w.seasonType}-W${w.value}`;
 
-        const firstUncomputedIdx = rows.findIndex((w) => !computedIds.has(weekDocId(w)));
+        const firstUncomputedIdx = rows.findIndex((w) => !weeklyResults.has(weekDocId(w)));
         const idx = firstUncomputedIdx !== -1 ? firstUncomputedIdx : rows.length - 1;
         const display = rows[idx];
 
@@ -121,6 +126,7 @@ export default function useScheduleWeek(seasonId = "nfl-2026") {
           order: display.order ?? null,
           prevWeekValue,
           isBeforeKickoff: initialBeforeKickoff,
+          weeklyResults,
         });
 
         tick();
