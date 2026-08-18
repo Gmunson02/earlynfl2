@@ -997,12 +997,8 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">{u.email || "—"}</td>
-                      <td className="px-3 py-2">
-                        <EditableCell
-                          value={l.fullName}
-                          width="w-36"
-                          onSave={(v) => saveLedgerField(u.uid, "fullName", v)}
-                        />
+                      <td className="px-3 py-2 text-zinc-500 whitespace-nowrap">
+                        {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <EditableCell
@@ -1130,11 +1126,9 @@ export default function AdminPage() {
                         <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                           Full Name
                         </label>
-                        <EditableCell
-                          value={l.fullName}
-                          width="w-full"
-                          onSave={(v) => saveLedgerField(u.uid, "fullName", v)}
-                        />
+                        <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                          {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
