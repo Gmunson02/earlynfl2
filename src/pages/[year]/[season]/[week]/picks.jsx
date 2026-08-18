@@ -111,9 +111,7 @@ export default function PicksPage({ year, week, season, matchups }) {
     return () => clearInterval(id);
   }, [matchups]);
 
-  // Preseason is a free-editing beta period — no kickoff deadline
-  const isPreseason = season === "pre";
-  const picksOpen = isBeforeKickoff || isPreseason;
+  const picksOpen = isBeforeKickoff;
 
   // Loads picks + profile for whichever identity is acting (yourself, or a
   // family member you manage) — id is a Firebase Auth uid for "Me", or a
@@ -292,7 +290,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   };
 
   const toggleLock = () => {
-    // safety guard – do not unlock after kickoff (except preseason)
+    // safety guard – do not unlock after kickoff
     if (!picksOpen) return;
     setSubmitted(false);
     setHasUnlocked(true);
@@ -364,7 +362,7 @@ export default function PicksPage({ year, week, season, matchups }) {
         </div>
       )}
 
-      {/* Hide Unlock button once the first game starts (except preseason) */}
+      {/* Hide Unlock button once the first game starts */}
       {submitted && picksOpen && (
         <div className="flex justify-center mb-4">
           <button

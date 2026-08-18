@@ -6,12 +6,6 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
-    // Preseason weeks are a free-editing beta period — no deadline.
-    // weekKey looks like "2026-pre-W2" or "2026-reg-W3".
-    function isPreseasonWeek(weekKey) {
-      return weekKey.matches('^[0-9]{4}-pre-W[0-9]+$');
-    }
-
     // True if users/{profileId} is a Family Member profile owned by the
     // caller (i.e. request.auth.uid manages it, even though it has no
     // Firebase Auth session of its own). Uses .get(key, default) since
@@ -80,7 +74,6 @@ service cloud.firestore {
                      && (
                        isAdmin() ||
                        ((request.auth.uid == userId || isManagedBy(userId)) && (
-                         isPreseasonWeek(weekKey) ||
                          request.time < get(/databases/$(database)/documents/week_locks/$(weekKey)).data.locksAt ||
                          // Admin-granted temporary unlock (e.g. "5 minutes late" calls)
                          (resource != null && request.time < resource.data.adminUnlockUntil)
