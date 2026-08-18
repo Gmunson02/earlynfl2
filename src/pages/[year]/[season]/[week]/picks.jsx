@@ -58,6 +58,28 @@ export async function getServerSideProps(context) {
   };
 }
 
+// Metadata stored alongside the eventId -> team selections in each week
+// doc. Kept out of `picks` state so it only ever holds real game picks —
+// otherwise auto-save writes these back too, which (among other things)
+// re-locked a doc the user had just unlocked.
+const SYSTEM_FIELDS = [
+  "tieBreaker",
+  "displayName",
+  "locked",
+  "submittedAt",
+  "lastEditedAt",
+  "weekKey",
+  "adminUnlockUntil",
+];
+
+function pickSelectionsOnly(data) {
+  const out = {};
+  for (const [k, v] of Object.entries(data || {})) {
+    if (!SYSTEM_FIELDS.includes(k)) out[k] = v;
+  }
+  return out;
+}
+
 export default function PicksPage({ year, week, season, matchups }) {
   const weekLabel = useWeekLabel(year, season, week);
   const [user, setUser] = useState(null);
@@ -72,8 +94,19 @@ export default function PicksPage({ year, week, season, matchups }) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [loadingPicks, setLoadingPicks] = useState(true);
   const hasHydrated = useRef(false);
   const autoSaveTimer = useRef(null);
+  // Bumped on every load so a slow in-flight read can't overwrite state
+  // from a newer one (fast week switching / profile switching).
+  const loadSeq = useRef(0);
+  // Signature of what we last read from (or wrote to) Firestore, so
+  // auto-save doesn't immediately re-save data it just loaded — that was
+  // bumping lastEditedAt on every single page visit.
+  const loadedSig = useRef(null);
+  // `${uid}|${todayKey}` we've already loaded, so an auth token refresh
+  // re-firing onAuthStateChanged doesn't wipe in-progress picks.
+  const loadedFor = useRef(null);
 
   // Family Members: submitting picks on someone else's behalf from your
   // own login. null actingId = "Me"; otherwise a family member's doc id.
@@ -117,46 +150,81 @@ export default function PicksPage({ year, week, season, matchups }) {
   // family member you manage) — id is a Firebase Auth uid for "Me", or a
   // family member's users/{profileId} doc id.
   const loadPicksFor = async (id) => {
-    const weekRef = doc(db, "picks", id, "weeks", todayKey);
-    const weekSnap = await getDoc(weekRef);
+    const seq = ++loadSeq.current;
+    setLoadingPicks(true);
 
-    const userRef = doc(db, "users", id);
-    const userSnap = await getDoc(userRef);
+    // Both reads at once — these used to be sequential, doubling the
+    // window where the page sat there with nothing loaded.
+    const [weekSnap, userSnap] = await Promise.all([
+      getDoc(doc(db, "picks", id, "weeks", todayKey)),
+      getDoc(doc(db, "users", id)),
+    ]);
+
+    // A newer load started while this one was in flight — discard it.
+    if (seq !== loadSeq.current) return null;
+
     const profile = userSnap.exists() ? userSnap.data() : null;
     setUserProfile(profile);
 
-    if (weekSnap.exists()) {
-      const pickData = weekSnap.data();
-      setPicks(pickData);
-      setTieBreaker(pickData.tieBreaker || "");
-      setSubmitted(pickData.locked === true);
-      setSubmittedAt(pickData.submittedAt || null);
-      setLastEditedAt(pickData.lastEditedAt || pickData.submittedAt || null); // prefer lastEditedAt
-    } else {
-      setPicks({});
-      setTieBreaker("");
-      setSubmitted(false);
-      setSubmittedAt(null);
-      setLastEditedAt(null);
-    }
+    const data = weekSnap.exists() ? weekSnap.data() : null;
+    const nextPicks = data ? pickSelectionsOnly(data) : {};
+    const nextTieBreaker = data?.tieBreaker || "";
+
+    setPicks(nextPicks);
+    setTieBreaker(nextTieBreaker);
+    setSubmitted(data?.locked === true);
+    setSubmittedAt(data?.submittedAt || null);
+    setLastEditedAt(data?.lastEditedAt || data?.submittedAt || null); // prefer lastEditedAt
+
+    loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
+    setLoadingPicks(false);
 
     return profile;
   };
 
   useEffect(() => {
     hasHydrated.current = false;
+
+    // Switching weeks reuses this same component instance (same route,
+    // different params), so without an explicit reset the new week renders
+    // carrying the previous week's tiebreaker, timestamps and locked state
+    // until the read lands. That's the "it briefly shows last week" flash —
+    // and while it looked submitted, the team buttons were disabled, so
+    // taps in that window were silently dropped.
+    setPicks({});
+    setTieBreaker("");
+    setSubmitted(false);
+    setSubmittedAt(null);
+    setLastEditedAt(null);
+    setHasUnlocked(false);
+    setSubmitError(null);
+    setAutoSaveStatus("idle");
+    setLoadingPicks(true);
+    loadedSig.current = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      setActingId(null); // reset to "Me" whenever the auth session changes
       if (u) {
+        // onAuthStateChanged also fires on token refresh. Reloading then
+        // would clobber picks the user is in the middle of making.
+        const key = `${u.uid}|${todayKey}`;
+        if (loadedFor.current === key) return;
+        loadedFor.current = key;
+
+        setActingId(null); // reset to "Me" whenever the session really changes
         const profile = await loadPicksFor(u.uid);
-        setOwnerDisplayName(profile?.displayName || "");
+        // null means a newer load superseded this one — leave its state alone
+        if (profile) setOwnerDisplayName(profile.displayName || "");
       } else {
+        loadSeq.current++; // invalidate any read still in flight for the old user
+        loadedFor.current = null;
+        setActingId(null);
         setUserProfile(null);
         setPicks({});
         setSubmitted(false);
         setSubmittedAt(null);
         setLastEditedAt(null);
+        setLoadingPicks(false);
       }
       // Allow auto-save to run only after this initial load finishes,
       // so restoring existing picks doesn't immediately trigger a save.
@@ -205,7 +273,14 @@ export default function PicksPage({ year, week, season, matchups }) {
   // they get interrupted before hitting Submit. Final Submit still locks it.
   useEffect(() => {
     if (!hasHydrated.current || !activeId || submitted || !picksOpen) return;
+    if (loadingPicks) return;
     if (Object.keys(picks).length === 0 && !tieBreaker) return;
+
+    // Nothing has actually changed since the last read/write — don't write
+    // the same data back (that bumped lastEditedAt on every page visit and
+    // flashed "Saving…" for no reason).
+    const sig = JSON.stringify({ picks, tieBreaker });
+    if (sig === loadedSig.current) return;
 
     setAutoSaveStatus("saving");
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
@@ -224,6 +299,7 @@ export default function PicksPage({ year, week, season, matchups }) {
           },
           { merge: true }
         );
+        loadedSig.current = sig;
         setLastEditedAt(now);
         setAutoSaveStatus("saved");
       } catch (err) {
@@ -234,10 +310,10 @@ export default function PicksPage({ year, week, season, matchups }) {
 
     return () => clearTimeout(autoSaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picks, tieBreaker, activeId]);
+  }, [picks, tieBreaker, activeId, loadingPicks]);
 
   const handlePick = (eventId, teamName) => {
-    if (submitted) return;
+    if (submitted || loadingPicks) return;
     setPicks((prev) => ({ ...prev, [eventId]: teamName }));
   };
 
@@ -275,6 +351,7 @@ export default function PicksPage({ year, week, season, matchups }) {
         { merge: true }
       );
 
+      loadedSig.current = JSON.stringify({ picks, tieBreaker });
       setSubmitted(true);
       setSubmittedAt(preservedSubmittedAt);
       setLastEditedAt(now);
@@ -301,6 +378,7 @@ export default function PicksPage({ year, week, season, matchups }) {
   const isSubmitDisabled =
     submitted ||
     !picksOpen ||
+    loadingPicks ||
     pickedGames.length !== matchups.length ||
     tieBreaker.trim() === "";
 
@@ -436,7 +514,7 @@ export default function PicksPage({ year, week, season, matchups }) {
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-900 ring-2 ring-blue-400"
                         : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                     }`}
-                    disabled={submitted}
+                    disabled={submitted || loadingPicks}
                   >
                     {team.logo ? (
                       <Image
@@ -486,11 +564,13 @@ export default function PicksPage({ year, week, season, matchups }) {
           onChange={(e) => setTieBreaker(e.target.value)}
           className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           placeholder="Enter total combined score"
-          disabled={submitted}
+          disabled={submitted || loadingPicks}
         />
         {!submitted && picksOpen && (
           <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            {autoSaveStatus === "saving"
+            {loadingPicks
+              ? "Loading your picks…"
+              : autoSaveStatus === "saving"
               ? "Saving…"
               : autoSaveStatus === "saved"
               ? "✓ Your progress is saved"

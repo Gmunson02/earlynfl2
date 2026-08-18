@@ -8,14 +8,13 @@ export default function BottomNav() {
   const router = useRouter();
   const { seasonYear, seasonType, value: week, isBeforeKickoff } = useScheduleWeek("nfl-2026");
 
-  // Preseason is a free-editing beta period — no kickoff deadline
-  const picksOpen = isBeforeKickoff || seasonType === "pre";
+  const picksOpen = isBeforeKickoff;
 
   const buildWeekPath = (y, s, w, leaf) =>
     y && s && w && leaf ? `/${y}/${s}/${w}/${leaf}` : null;
 
-  // Picks close once the week's first game kicks off (except preseason) —
-  // same rule enforced server-side
+  // Picks close once the week's first game kicks off — same rule enforced
+  // server-side in the Firestore rules
   const picksHref = useMemo(
     () => (picksOpen ? buildWeekPath(seasonYear, seasonType, week, "picks") : null),
     [seasonYear, seasonType, week, picksOpen]

@@ -166,8 +166,7 @@ export default function Dashboard() {
     isBeforeKickoff, // NEW
   } = useScheduleWeek("nfl-2026");
 
-  // Preseason is a free-editing beta period — no kickoff deadline
-  const picksOpen = isBeforeKickoff || seasonType === "pre";
+  const picksOpen = isBeforeKickoff;
 
   const currentResultsWeekNumber = Number(value ?? "1");
   const lastWeek = useLastWeekWinner(
