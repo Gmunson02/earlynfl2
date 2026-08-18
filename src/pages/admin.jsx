@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { db } from "../lib/firebase";
+import { db, functions } from "../lib/firebase";
 import {
   collection,
   collectionGroup,
@@ -15,6 +15,7 @@ import {
   orderBy,
   Timestamp,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import useIsAdmin from "../hooks/useIsAdmin";
 import RenameModal from "../components/RenameModal";
 import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users, Home, Trash2 } from "lucide-react";
@@ -230,6 +231,72 @@ function RegisteredUsersModal({ users, onClose }) {
               </tbody>
             </table>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Delete User modal: full cascade delete (Auth + profile + picks +
+// ledger). Requires typing DELETE to confirm — this is irreversible. ----
+function DeleteUserModal({ user, onConfirm, onClose }) {
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(null);
+  const canConfirm = confirmText === "DELETE" && !deleting;
+
+  const handleConfirm = async () => {
+    if (!canConfirm) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await onConfirm(user.uid);
+      onClose();
+    } catch (err) {
+      console.error("Delete user failed:", err);
+      setError(err.message || "Failed to delete user.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+        <h2 className="font-bold text-lg text-red-600 dark:text-red-400">Delete User</h2>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          This permanently deletes{" "}
+          <span className="font-semibold">{user.displayName || user.uid}</span>
+          {user.email ? ` (${user.email})` : ""} — their sign-in, profile, every week of picks,
+          and their ledger entry. This cannot be undone.
+        </p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          Type <span className="font-mono font-bold">DELETE</span> to confirm.
+        </p>
+        <input
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder="DELETE"
+          className="w-full p-2.5 border rounded-lg dark:bg-gray-800 dark:border-gray-600 font-mono"
+          autoFocus
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!canConfirm}
+            className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "Delete Permanently"}
+          </button>
         </div>
       </div>
     </div>
@@ -503,6 +570,7 @@ export default function AdminPage() {
   const [submittedUids, setSubmittedUids] = useState(new Set());
   const [editingUser, setEditingUser] = useState(null);
   const [renamingUser, setRenamingUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
   const [expandedUids, setExpandedUids] = useState(new Set());
   const [invitingUser, setInvitingUser] = useState(false);
   const [showRegisteredUsers, setShowRegisteredUsers] = useState(false);
@@ -632,6 +700,12 @@ export default function AdminPage() {
       console.error("Remove family member failed:", err);
       alert("Failed to remove family member — see console.");
     }
+  }, []);
+
+  const deleteUser = useCallback(async (uid) => {
+    const call = httpsCallable(functions, "adminDeleteUser");
+    await call({ uid });
+    setUsers((prev) => prev.filter((u) => u.uid !== uid));
   }, []);
 
   const unlockUser = useCallback(
@@ -836,6 +910,13 @@ export default function AdminPage() {
                           >
                             <UserPen size={15} /> Edit Display Name
                           </button>
+                          <button
+                            onClick={() => setDeletingUser(u)}
+                            title="Permanently delete this user"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm whitespace-nowrap"
+                          >
+                            <Trash2 size={15} /> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -978,6 +1059,12 @@ export default function AdminPage() {
                         >
                           <UserPen size={15} /> Edit Display Name
                         </button>
+                        <button
+                          onClick={() => setDeletingUser(u)}
+                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-semibold hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1003,6 +1090,14 @@ export default function AdminPage() {
           currentName={renamingUser.displayName}
           onSave={saveDisplayName}
           onClose={() => setRenamingUser(null)}
+        />
+      )}
+
+      {deletingUser && (
+        <DeleteUserModal
+          user={deletingUser}
+          onConfirm={deleteUser}
+          onClose={() => setDeletingUser(null)}
         />
       )}
 

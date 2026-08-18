@@ -1,14 +1,16 @@
 // Firebase Functions v2 (Node 20)
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 
 const ADMIN_KEY = defineSecret("ADMIN_KEY");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 
 initializeApp();
 const db = getFirestore();
+const authAdmin = getAuth();
 
 const DEFAULT_YEAR = 2026;
 const DEFAULT_SEASON = "reg"; // "pre" | "reg" | "post"
@@ -246,5 +248,43 @@ exports.computeWeeklyWinnersNow = onRequest(
       console.error("computeWeeklyWinnersNow error:", err);
       return res.status(500).json({ ok: false, error: String(err?.message || err) });
     }
+  }
+);
+
+// ---------- Admin: full user delete (Auth + all Firestore records) ----------
+// Client-side admin custom-claim checks are convenience only; this is the
+// real enforcement, since deleting a Firebase Auth user by uid requires the
+// Admin SDK and can't be done from the client even with the admin claim.
+exports.adminDeleteUser = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    if (request.auth?.token?.admin !== true) {
+      throw new HttpsError("permission-denied", "Admin only.");
+    }
+    const uid = String(request.data?.uid || "").trim();
+    if (!uid) {
+      throw new HttpsError("invalid-argument", "Missing uid.");
+    }
+    if (uid === request.auth.uid) {
+      throw new HttpsError("failed-precondition", "You can't delete your own account.");
+    }
+
+    // Firestore: profile, legacy picks doc, live picks/{uid}/weeks/*, ledger.
+    const weeksSnap = await db.collection("picks").doc(uid).collection("weeks").get();
+    const batch = db.batch();
+    weeksSnap.forEach((d) => batch.delete(d.ref));
+    batch.delete(db.collection("picks").doc(uid));
+    batch.delete(db.collection("users").doc(uid));
+    batch.delete(db.collection("admin_ledger").doc(uid));
+    await batch.commit();
+
+    // Auth: ignore "not found" — Family Member profiles have no Auth user.
+    try {
+      await authAdmin.deleteUser(uid);
+    } catch (err) {
+      if (err.code !== "auth/user-not-found") throw err;
+    }
+
+    return { success: true };
   }
 );

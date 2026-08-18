@@ -2,6 +2,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 // ✅ Your Firebase config here — get it from Firebase Console → Project Settings → General
 const firebaseConfig = {
@@ -17,6 +18,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+const functions = getFunctions(app, "us-central1");
 
 
-export { auth, db };
+export { auth, db, functions };
