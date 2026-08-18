@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase
 import Image from "next/image";
 import { Unlock, Info } from "lucide-react";
 import { getScoreboard } from "../../../../lib/espnScoreboard";
+import { getWeekLabel } from "../../../../lib/weekLabels";
 import useWeekLabel from "../../../../hooks/useWeekLabel";
 
 export async function getServerSideProps(context) {
@@ -14,7 +15,12 @@ export async function getServerSideProps(context) {
   const typeMap = { pre: 1, reg: 2, post: 3 };
   const seasontype = typeMap[season] ?? 2; // default to regular if missing
 
-  const { data } = await getScoreboard({ year, week, seasontype });
+  // Resolve the heading label here too, so the first paint already says
+  // "Preseason Week 2" rather than ESPN's raw week number.
+  const [{ data }, weekLabel] = await Promise.all([
+    getScoreboard({ year, week, seasontype }),
+    getWeekLabel({ year, season: season || "reg", week }),
+  ]);
 
   const events = Array.isArray(data?.events) ? data.events : [];
 
@@ -54,6 +60,7 @@ export async function getServerSideProps(context) {
       week: String(week),
       season: String(season || "reg"),
       matchups,
+      weekLabelSsr: weekLabel,
     },
   };
 }
@@ -80,8 +87,9 @@ function pickSelectionsOnly(data) {
   return out;
 }
 
-export default function PicksPage({ year, week, season, matchups }) {
-  const weekLabel = useWeekLabel(year, season, week);
+export default function PicksPage({ year, week, season, matchups, weekLabelSsr }) {
+  // SSR already resolved this; the hook only re-fetches if that failed.
+  const weekLabel = useWeekLabel(year, season, week, weekLabelSsr);
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [picks, setPicks] = useState({});
@@ -385,12 +393,18 @@ export default function PicksPage({ year, week, season, matchups }) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-32 bg-white dark:bg-gray-900 min-h-screen">
       <h1 className="text-4xl font-extrabold text-center mb-2 text-gray-900 dark:text-white tracking-tight">
-        {weekLabel || `Week ${week}`} Picks
+        {weekLabel ? `${weekLabel} Picks` : "Picks"}
       </h1>
 
       {!picksOpen && !submitted && (
         <div className="mb-4 text-center text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
           Picks are closed for this week — the first game has already started.
+        </div>
+      )}
+
+      {loadingPicks && (
+        <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
+          Loading your picks…
         </div>
       )}
 

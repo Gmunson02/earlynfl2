@@ -8,10 +8,17 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 // route "week" param is ESPN's own week number and isn't always what we
 // want to display (e.g. Hall of Fame Weekend is ESPN's week 1, but our
 // house labels start "Preseason Week 1" the week after).
-export default function useWeekLabel(year, seasonType, weekValue) {
-  const [label, setLabel] = useState(null);
+// Pass `initialLabel` when the caller already resolved it server-side (see
+// lib/weekLabels.js) — the lookup is then skipped entirely, so the heading
+// never briefly renders the raw ESPN week number.
+export default function useWeekLabel(year, seasonType, weekValue, initialLabel = null) {
+  const [label, setLabel] = useState(initialLabel ?? null);
 
   useEffect(() => {
+    if (initialLabel) {
+      setLabel(initialLabel);
+      return;
+    }
     if (!year || !seasonType || weekValue == null) {
       setLabel(null);
       return;
@@ -29,7 +36,7 @@ export default function useWeekLabel(year, seasonType, weekValue) {
     return () => {
       cancelled = true;
     };
-  }, [year, seasonType, weekValue]);
+  }, [year, seasonType, weekValue, initialLabel]);
 
   return label;
 }
