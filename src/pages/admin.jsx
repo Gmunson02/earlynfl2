@@ -547,12 +547,20 @@ export default function AdminPage() {
       const weeks = weeksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setWeeksList(weeks);
 
-      const now = new Date();
-      const activeIdx = weeks.findIndex((w) => {
-        const s = tsToDate(w.start),
-          e = tsToDate(w.end);
-        return s && e && s <= now && now < e;
-      });
+      // Same rule as useScheduleWeek: default to the earliest week that
+      // doesn't have a weekly_results doc yet, not the week whose kickoff
+      // window happens to contain "now" (that left the picker stuck on a
+      // just-finished week for days).
+      const seasonYear = weeks[0]?.seasonYear;
+      let computedIds = new Set();
+      if (seasonYear != null) {
+        const resultsSnap = await getDocs(
+          query(collection(db, "weekly_results"), where("year", "==", seasonYear))
+        );
+        computedIds = new Set(resultsSnap.docs.map((d) => d.id));
+      }
+      const weekDocId = (w) => `${w.seasonYear}-${w.seasonType}-W${w.value}`;
+      const activeIdx = weeks.findIndex((w) => !computedIds.has(weekDocId(w)));
       setSelectedWeekId(weeks[activeIdx]?.id || weeks[weeks.length - 1]?.id || null);
 
       setLoading(false);
