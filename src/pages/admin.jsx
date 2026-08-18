@@ -732,7 +732,7 @@ function CurrencyCell({ value, onSave, width = "w-24" }) {
           const num = local === "" || local === "-" ? 0 : Number(local);
           if (num !== Number(value ?? 0)) onSave(num);
         }}
-        className="w-full pl-5 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-800"
+        className="w-full pl-5 pr-2 py-1 text-sm text-right border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-800"
       />
     </div>
   );
