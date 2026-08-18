@@ -108,51 +108,6 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-// The reads time out rather than erroring, which means they never settle at
-// all — so the useful question is which layer is stuck, not what Firestore
-// returned. Probe each one so a stuck page can report where it wedged.
-async function collectDiagnostics(err, startedAt) {
-  const out = [];
-  out.push(`err: ${err?.name || "?"} / ${err?.code || "no-code"}`);
-  out.push(`msg: ${err?.message || "(none)"}`);
-  out.push(`elapsed: ${Date.now() - startedAt}ms`);
-  out.push(`online: ${typeof navigator !== "undefined" ? navigator.onLine : "?"}`);
-  out.push(`visibility: ${typeof document !== "undefined" ? document.visibilityState : "?"}`);
-  out.push(
-    `standalone: ${
-      typeof window !== "undefined" &&
-      (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone)
-        ? "yes (PWA)"
-        : "no (browser)"
-    }`
-  );
-
-  const u = auth.currentUser;
-  out.push(`authUser: ${u ? `${u.uid.slice(0, 6)}…` : "NONE"}`);
-
-  // If this is what's hanging, Firestore can never issue its request and a
-  // read will sit there forever without ever failing.
-  if (u) {
-    const t0 = Date.now();
-    try {
-      await withTimeout(u.getIdToken(), 3000);
-      out.push(`getIdToken: ok (${Date.now() - t0}ms)`);
-    } catch (e) {
-      out.push(`getIdToken: STUCK/FAILED — ${e?.message || e} (${Date.now() - t0}ms)`);
-    }
-
-    const t1 = Date.now();
-    try {
-      await withTimeout(u.getIdToken(true), 3000); // force refresh
-      out.push(`forceRefresh: ok (${Date.now() - t1}ms)`);
-    } catch (e) {
-      out.push(`forceRefresh: STUCK/FAILED — ${e?.message || e} (${Date.now() - t1}ms)`);
-    }
-  }
-
-  return out.join("\n");
-}
-
 function pickSelectionsOnly(data) {
   const out = {};
   for (const [k, v] of Object.entries(data || {})) {
@@ -177,7 +132,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   const [submitError, setSubmitError] = useState(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [loadingPicks, setLoadingPicks] = useState(true);
-  const [loadError, setLoadError] = useState(null); // null | { code }
+  const [loadError, setLoadError] = useState(false);
   const autoRetries = useRef(0);
   const autoRetryTimer = useRef(null);
   const hasHydrated = useRef(false);
@@ -236,7 +191,6 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   // family member's users/{profileId} doc id.
   const loadPicksFor = async (id) => {
     const seq = ++loadSeq.current;
-    const startedAt = Date.now();
     clearTimeout(autoRetryTimer.current);
     setLoadingPicks(true);
 
@@ -258,7 +212,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
       autoRetries.current = 0;
       setLoadingPicks(false);
-      setLoadError(null);
+      setLoadError(false);
       return profile;
     };
 
@@ -303,15 +257,8 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       // Clear the "already loaded this" marker, otherwise the guard in the
       // auth effect treats this failed attempt as done and never retries.
       loadedFor.current = null;
-      setLoadError({ code: err?.code || err?.message || "unknown", details: null });
+      setLoadError(true);
       setLoadingPicks(false);
-
-      // Probe which layer is stuck and attach it for reporting.
-      collectDiagnostics(err, startedAt).then((details) => {
-        if (seq === loadSeq.current) {
-          setLoadError((prev) => (prev ? { ...prev, details } : prev));
-        }
-      });
 
       // Most of these are transient, so keep trying quietly for a bit before
       // leaving it to the user.
@@ -348,7 +295,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
     setSubmitError(null);
     setAutoSaveStatus("idle");
     setLoadingPicks(true);
-    setLoadError(null);
+    setLoadError(false);
     autoRetries.current = 0;
     clearTimeout(autoRetryTimer.current);
     loadedSig.current = null;
@@ -423,7 +370,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
     if (!loadingPicks) return;
     const t = setTimeout(() => {
       setLoadingPicks(false);
-      setLoadError({ code: "no-response" });
+      setLoadError(true);
     }, LOAD_TIMEOUT_MS + 1000);
     return () => clearTimeout(t);
   }, [loadingPicks]);
@@ -594,37 +541,15 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       )}
 
       {loadError && (
-        <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
-          <div className="text-center">
-            Couldn&apos;t load your picks.{" "}
-            {loadingPicks ? (
-              <span className="font-semibold">Retrying…</span>
-            ) : (
-              <button onClick={retryLoad} className="font-semibold underline">
-                Try again
-              </button>
-            )}
-          </div>
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-center text-xs opacity-80">
-              Show details ({loadError.code})
-            </summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words text-left text-[11px] leading-snug opacity-90">
-              {loadError.details || "collecting…"}
-            </pre>
-            <button
-              onClick={() => {
-                const text = `picks load failure\nweek: ${todayKey}\ncode: ${loadError.code}\n${
-                  loadError.details || ""
-                }`;
-                navigator.clipboard?.writeText(text);
-              }}
-              className="mt-1 w-full text-center text-xs font-semibold underline"
-            >
-              Copy details
+        <div className="mb-4 text-center text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
+          Couldn&apos;t load your picks.{" "}
+          {loadingPicks ? (
+            <span className="font-semibold">Retrying…</span>
+          ) : (
+            <button onClick={retryLoad} className="font-semibold underline">
+              Try again
             </button>
-          </details>
+          )}
         </div>
       )}
 
