@@ -79,6 +79,22 @@ const SYSTEM_FIELDS = [
   "adminUnlockUntil",
 ];
 
+// Firestore reads can hang instead of failing when the connection is being
+// re-established — common in the installed PWA when it resumes or when you
+// navigate between pages quickly. Cap the wait so it surfaces a retry
+// rather than spinning forever.
+const LOAD_TIMEOUT_MS = 12_000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Timed out loading picks")), ms);
+    }),
+  ]);
+}
+
 function pickSelectionsOnly(data) {
   const out = {};
   for (const [k, v] of Object.entries(data || {})) {
@@ -103,6 +119,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   const [submitError, setSubmitError] = useState(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saving | saved | error
   const [loadingPicks, setLoadingPicks] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const hasHydrated = useRef(false);
   const autoSaveTimer = useRef(null);
   // Bumped on every load so a slow in-flight read can't overwrite state
@@ -160,34 +177,59 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   const loadPicksFor = async (id) => {
     const seq = ++loadSeq.current;
     setLoadingPicks(true);
+    setLoadError(false);
 
-    // Both reads at once — these used to be sequential, doubling the
-    // window where the page sat there with nothing loaded.
-    const [weekSnap, userSnap] = await Promise.all([
-      getDoc(doc(db, "picks", id, "weeks", todayKey)),
-      getDoc(doc(db, "users", id)),
-    ]);
+    try {
+      // Both reads at once — these used to be sequential, doubling the
+      // window where the page sat there with nothing loaded. Raced against
+      // a timeout because a getDoc with no connection can hang rather than
+      // reject, which would leave this stuck on "Loading…" indefinitely.
+      const [weekSnap, userSnap] = await withTimeout(
+        Promise.all([
+          getDoc(doc(db, "picks", id, "weeks", todayKey)),
+          getDoc(doc(db, "users", id)),
+        ]),
+        LOAD_TIMEOUT_MS
+      );
 
-    // A newer load started while this one was in flight — discard it.
-    if (seq !== loadSeq.current) return null;
+      // A newer load started while this one was in flight — discard it.
+      if (seq !== loadSeq.current) return null;
 
-    const profile = userSnap.exists() ? userSnap.data() : null;
-    setUserProfile(profile);
+      const profile = userSnap.exists() ? userSnap.data() : null;
+      setUserProfile(profile);
 
-    const data = weekSnap.exists() ? weekSnap.data() : null;
-    const nextPicks = data ? pickSelectionsOnly(data) : {};
-    const nextTieBreaker = data?.tieBreaker || "";
+      const data = weekSnap.exists() ? weekSnap.data() : null;
+      const nextPicks = data ? pickSelectionsOnly(data) : {};
+      const nextTieBreaker = data?.tieBreaker || "";
 
-    setPicks(nextPicks);
-    setTieBreaker(nextTieBreaker);
-    setSubmitted(data?.locked === true);
-    setSubmittedAt(data?.submittedAt || null);
-    setLastEditedAt(data?.lastEditedAt || data?.submittedAt || null); // prefer lastEditedAt
+      setPicks(nextPicks);
+      setTieBreaker(nextTieBreaker);
+      setSubmitted(data?.locked === true);
+      setSubmittedAt(data?.submittedAt || null);
+      setLastEditedAt(data?.lastEditedAt || data?.submittedAt || null); // prefer lastEditedAt
 
-    loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
-    setLoadingPicks(false);
+      loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
+      setLoadingPicks(false);
+      setLoadError(false); // a slow load that beat the watchdog still recovers
 
-    return profile;
+      return profile;
+    } catch (err) {
+      console.error("Failed to load picks", err);
+      if (seq !== loadSeq.current) return null;
+
+      // Clear the "already loaded this" marker, otherwise the guard in the
+      // auth effect treats this failed attempt as done and never retries.
+      loadedFor.current = null;
+      setLoadError(true);
+      setLoadingPicks(false);
+      return null;
+    }
+  };
+
+  // Re-run the load for whoever is currently acting.
+  const retryLoad = () => {
+    const targetId = actingId || user?.uid;
+    if (targetId) loadPicksFor(targetId);
   };
 
   useEffect(() => {
@@ -208,7 +250,14 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
     setSubmitError(null);
     setAutoSaveStatus("idle");
     setLoadingPicks(true);
+    setLoadError(false);
     loadedSig.current = null;
+    // We just blanked the state, so we genuinely need to re-read. Leaving a
+    // stale marker here lets the guard below skip the load while loading is
+    // still true — which is exactly how the page got stuck on
+    // "Loading your picks…" forever. The guard's job is only to ignore
+    // repeat auth callbacks (token refresh) within this same run.
+    loadedFor.current = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -263,6 +312,38 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
 
   const activeId = actingId || user?.uid || null;
 
+  // Backstop against any stuck-loading path, including ones not anticipated
+  // here (e.g. the auth callback never firing, so no load ever starts and
+  // the timeout inside loadPicksFor never applies). Whatever the cause, the
+  // page offers a retry instead of spinning forever.
+  useEffect(() => {
+    if (!loadingPicks) return;
+    const t = setTimeout(() => {
+      setLoadingPicks(false);
+      setLoadError(true);
+    }, LOAD_TIMEOUT_MS + 1000);
+    return () => clearTimeout(t);
+  }, [loadingPicks]);
+
+  // Recover on its own once the app is usable again, so a failed load in the
+  // installed PWA doesn't sit there waiting for a tap. Covers coming back
+  // online and resuming the app from the background.
+  useEffect(() => {
+    if (!loadError || !activeId) return;
+
+    const retry = () => {
+      if (document.visibilityState === "visible") loadPicksFor(activeId);
+    };
+
+    window.addEventListener("online", retry);
+    document.addEventListener("visibilitychange", retry);
+    return () => {
+      window.removeEventListener("online", retry);
+      document.removeEventListener("visibilitychange", retry);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadError, activeId, todayKey]);
+
   // Switching who you're picking for: cancel any pending auto-save so it
   // can't land on the wrong profile's doc, then load the new profile's data.
   const handleActingChange = async (newActingId) => {
@@ -281,7 +362,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   // they get interrupted before hitting Submit. Final Submit still locks it.
   useEffect(() => {
     if (!hasHydrated.current || !activeId || submitted || !picksOpen) return;
-    if (loadingPicks) return;
+    if (loadingPicks || loadError) return;
     if (Object.keys(picks).length === 0 && !tieBreaker) return;
 
     // Nothing has actually changed since the last read/write — don't write
@@ -318,10 +399,10 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
 
     return () => clearTimeout(autoSaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picks, tieBreaker, activeId, loadingPicks]);
+  }, [picks, tieBreaker, activeId, loadingPicks, loadError]);
 
   const handlePick = (eventId, teamName) => {
-    if (submitted || loadingPicks) return;
+    if (submitted || loadingPicks || loadError) return;
     setPicks((prev) => ({ ...prev, [eventId]: teamName }));
   };
 
@@ -387,6 +468,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
     submitted ||
     !picksOpen ||
     loadingPicks ||
+    loadError ||
     pickedGames.length !== matchups.length ||
     tieBreaker.trim() === "";
 
@@ -405,6 +487,15 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       {loadingPicks && (
         <div className="mb-4 text-center text-sm text-gray-500 dark:text-gray-400">
           Loading your picks…
+        </div>
+      )}
+
+      {loadError && (
+        <div className="mb-4 text-center text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
+          Couldn&apos;t load your picks.{" "}
+          <button onClick={retryLoad} className="font-semibold underline">
+            Try again
+          </button>
         </div>
       )}
 
@@ -528,7 +619,7 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
                         ? "border-blue-500 bg-blue-50 dark:bg-blue-900 ring-2 ring-blue-400"
                         : "border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                     }`}
-                    disabled={submitted || loadingPicks}
+                    disabled={submitted || loadingPicks || loadError}
                   >
                     {team.logo ? (
                       <Image
@@ -578,11 +669,13 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
           onChange={(e) => setTieBreaker(e.target.value)}
           className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-black dark:text-white border-gray-300 dark:border-gray-600 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           placeholder="Enter total combined score"
-          disabled={submitted || loadingPicks}
+          disabled={submitted || loadingPicks || loadError}
         />
         {!submitted && picksOpen && (
           <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            {loadingPicks
+            {loadError
+              ? "⚠ Couldn't load your picks — nothing will be saved until it loads"
+              : loadingPicks
               ? "Loading your picks…"
               : autoSaveStatus === "saving"
               ? "Saving…"
