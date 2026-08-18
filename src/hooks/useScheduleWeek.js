@@ -1,7 +1,7 @@
 // hooks/useScheduleWeek.js
 import { useEffect, useState } from "react";
 import { db } from "../lib/firebase";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 
 // Firestore Timestamp helper (works for web Timestamp or admin {seconds,...})
 function tsToDate(x) {
@@ -13,7 +13,9 @@ function tsToDate(x) {
 
 /**
  * Reads schedules/{seasonId}/weeks ordered by 'order'.
- * Picks active (start <= now < end) else next upcoming (start > now) else last.
+ * "Current week" = the earliest week that doesn't yet have a weekly_results
+ * doc (i.e. hasn't been finalized by the Tuesday 2am compute job), else the
+ * last week if everything's been computed.
  * Returns ESPN week `value` (string) for routes, plus helpful timing fields.
  * This is the single source of truth for "what week is it" across the app —
  * anything gating picks by kickoff time should use this, not a live ESPN call.
@@ -61,10 +63,22 @@ export default function useScheduleWeek(seasonId = "nfl-2026") {
           return;
         }
 
-        const now = new Date();
-        const activeIdx = rows.findIndex((w) => w.start && w.end && w.start <= now && now < w.end);
-        const nextIdx = rows.findIndex((w) => w.start && w.start > now);
-        const idx = activeIdx !== -1 ? activeIdx : (nextIdx !== -1 ? nextIdx : rows.length - 1);
+        // A week is "done" once its weekly_results doc exists (written by the
+        // Tuesday 2am compute job) — that's what actually advances "current
+        // week" now, not the next week's kickoff time. Otherwise the site
+        // would sit on a just-finished week for days until new games start.
+        const seasonYear = rows[0]?.seasonYear;
+        let computedIds = new Set();
+        if (seasonYear != null) {
+          const resultsSnap = await getDocs(
+            query(collection(db, "weekly_results"), where("year", "==", seasonYear))
+          );
+          computedIds = new Set(resultsSnap.docs.map((d) => d.id));
+        }
+        const weekDocId = (w) => `${w.seasonYear}-${w.seasonType}-W${w.value}`;
+
+        const firstUncomputedIdx = rows.findIndex((w) => !computedIds.has(weekDocId(w)));
+        const idx = firstUncomputedIdx !== -1 ? firstUncomputedIdx : rows.length - 1;
         const display = rows[idx];
 
         const prevWeekValue =
