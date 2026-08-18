@@ -695,6 +695,39 @@ function EditableCell({ value, onSave, type = "text", width = "w-24" }) {
   );
 }
 
+// ---- Editable whole-dollar currency cell — "$" prefix, digits only, no
+// decimals, no native number-input spinner chevrons. ----
+function CurrencyCell({ value, onSave, width = "w-24" }) {
+  const toDigits = (v) => {
+    const s = String(v ?? "");
+    const neg = s.trim().startsWith("-");
+    const digits = s.replace(/[^0-9]/g, "");
+    return (neg && digits ? "-" : "") + digits;
+  };
+
+  const [local, setLocal] = useState(toDigits(value));
+  useEffect(() => setLocal(toDigits(value)), [value]);
+
+  return (
+    <div className={`${width} relative`}>
+      <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm text-gray-500 dark:text-gray-400">
+        $
+      </span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={local}
+        onChange={(e) => setLocal(toDigits(e.target.value))}
+        onBlur={() => {
+          const num = local === "" || local === "-" ? 0 : Number(local);
+          if (num !== Number(value ?? 0)) onSave(num);
+        }}
+        className="w-full pl-5 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-800"
+      />
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const adminStatus = useIsAdmin();
@@ -977,7 +1010,7 @@ export default function AdminPage() {
                   const l = ledger[u.uid] || {};
                   const submitted = submittedUids.has(u.uid);
                   const startingBalance = Number(l.startingBalance) || 0;
-                  const duesOwed = Number(l.duesOwed) || 0;
+                  const duesOwed = l.duesOwed != null ? Number(l.duesOwed) : 18; // default for a user with no ledger entry yet
                   const winnings = Number(l.winnings) || 0;
                   const currentBalance = startingBalance - duesOwed + winnings;
                   return (
@@ -1001,24 +1034,21 @@ export default function AdminPage() {
                         {[u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <EditableCell
-                          type="number"
-                          value={l.startingBalance}
-                          onSave={(v) => saveLedgerField(u.uid, "startingBalance", Number(v) || 0)}
+                        <CurrencyCell
+                          value={startingBalance}
+                          onSave={(v) => saveLedgerField(u.uid, "startingBalance", v)}
                         />
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <EditableCell
-                          type="number"
-                          value={l.duesOwed}
-                          onSave={(v) => saveLedgerField(u.uid, "duesOwed", Number(v) || 0)}
+                        <CurrencyCell
+                          value={duesOwed}
+                          onSave={(v) => saveLedgerField(u.uid, "duesOwed", v)}
                         />
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <EditableCell
-                          type="number"
-                          value={l.winnings}
-                          onSave={(v) => saveLedgerField(u.uid, "winnings", Number(v) || 0)}
+                        <CurrencyCell
+                          value={winnings}
+                          onSave={(v) => saveLedgerField(u.uid, "winnings", v)}
                         />
                       </td>
                       <td
@@ -1082,7 +1112,7 @@ export default function AdminPage() {
               const l = ledger[u.uid] || {};
               const submitted = submittedUids.has(u.uid);
               const startingBalance = Number(l.startingBalance) || 0;
-              const duesOwed = Number(l.duesOwed) || 0;
+              const duesOwed = l.duesOwed != null ? Number(l.duesOwed) : 18; // default for a user with no ledger entry yet
               const winnings = Number(l.winnings) || 0;
               const currentBalance = startingBalance - duesOwed + winnings;
               const isOpen = expandedUids.has(u.uid);
@@ -1136,11 +1166,10 @@ export default function AdminPage() {
                           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                             Starting Balance
                           </label>
-                          <EditableCell
-                            type="number"
-                            value={l.startingBalance}
+                          <CurrencyCell
+                            value={startingBalance}
                             width="w-full"
-                            onSave={(v) => saveLedgerField(u.uid, "startingBalance", Number(v) || 0)}
+                            onSave={(v) => saveLedgerField(u.uid, "startingBalance", v)}
                           />
                         </div>
                         <div>
@@ -1150,22 +1179,20 @@ export default function AdminPage() {
                           >
                             Dues Owed
                           </label>
-                          <EditableCell
-                            type="number"
-                            value={l.duesOwed}
+                          <CurrencyCell
+                            value={duesOwed}
                             width="w-full"
-                            onSave={(v) => saveLedgerField(u.uid, "duesOwed", Number(v) || 0)}
+                            onSave={(v) => saveLedgerField(u.uid, "duesOwed", v)}
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                             2026 Winnings
                           </label>
-                          <EditableCell
-                            type="number"
-                            value={l.winnings}
+                          <CurrencyCell
+                            value={winnings}
                             width="w-full"
-                            onSave={(v) => saveLedgerField(u.uid, "winnings", Number(v) || 0)}
+                            onSave={(v) => saveLedgerField(u.uid, "winnings", v)}
                           />
                         </div>
                         <div>
