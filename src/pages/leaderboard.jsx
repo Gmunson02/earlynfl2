@@ -4,14 +4,19 @@ import { db } from "../lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { loadSeasonStandingsByName } from "../lib/seasonStandings";
 import { fetchDisplayNameMap } from "../lib/liveDisplayNames";
-
-const CURRENT_YEAR = 2026;
-const CURRENT_SEASON = "reg"; // standings only count regular season
+import useScheduleWeek from "../hooks/useScheduleWeek";
 
 const LAST_YEAR = 2025;
 const LAST_SEASON = "reg";
 
+const SEASON_LABEL = { pre: "Pre-Season", reg: "Season", post: "Post-Season" };
+
 export default function LeaderboardPage() {
+  // Same source of truth as the dashboard: whichever season/week is
+  // currently active, so the leaderboard flips from Preseason to Regular
+  // Season on its own as the year progresses.
+  const { seasonYear, seasonType, loading: weekLoading } = useScheduleWeek("nfl-2026");
+
   const [loading, setLoading] = useState(true);
   const [seasonDoc, setSeasonDoc] = useState(null);
   const [weeklyDocs, setWeeklyDocs] = useState([]);
@@ -20,16 +25,18 @@ export default function LeaderboardPage() {
   const [nameMap, setNameMap] = useState(new Map());
 
   useEffect(() => {
+    if (weekLoading || !seasonYear || !seasonType) return;
+
     const load = async () => {
       setLoading(true);
 
       const [sSnap, wSnap, lastSeason, names] = await Promise.all([
-        getDoc(doc(db, "season_leaderboard", `${CURRENT_YEAR}-${CURRENT_SEASON}`)),
+        getDoc(doc(db, "season_leaderboard", `${seasonYear}-${seasonType}`)),
         getDocs(
           query(
             collection(db, "weekly_results"),
-            where("year", "==", CURRENT_YEAR),
-            where("season", "==", CURRENT_SEASON)
+            where("year", "==", seasonYear),
+            where("season", "==", seasonType)
           )
         ),
         // Last season's standings are a closed-out historical record, grouped
@@ -52,7 +59,7 @@ export default function LeaderboardPage() {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [weekLoading, seasonYear, seasonType]);
 
   // Map uid -> number of weekly titles (Wins), current season
   const weeklyWinsMap = useMemo(() => {
@@ -117,7 +124,9 @@ export default function LeaderboardPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white px-4 py-6">
       <Head>
-        <title>Leaderboard • {CURRENT_YEAR} {CURRENT_SEASON.toUpperCase()}</title>
+        <title>
+          Leaderboard{seasonYear && seasonType ? ` • ${seasonYear} ${SEASON_LABEL[seasonType] || seasonType}` : ""}
+        </title>
       </Head>
 
       <div className="max-w-5xl mx-auto space-y-6">
@@ -132,7 +141,7 @@ export default function LeaderboardPage() {
           {loading ? (
             <p className="text-zinc-500">Loading…</p>
           ) : !latestWeekly ? (
-            <p className="text-zinc-500">Results to follow Week 1 of the regular season.</p>
+            <p className="text-zinc-500">Results to follow Week 1.</p>
           ) : latestWinners.length ? (
             <div className="space-y-2">
               {latestWinners.map((w) => (
@@ -165,13 +174,15 @@ export default function LeaderboardPage() {
         {/* Current season standings */}
         <section className="bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700 p-5">
           <h2 className="text-xl font-bold mb-3">
-            {CURRENT_YEAR} Season Standings
+            {seasonYear && seasonType
+              ? `${seasonYear} ${SEASON_LABEL[seasonType] || seasonType} Standings`
+              : "Season Standings"}
           </h2>
 
           {loading ? (
             <p className="text-zinc-500">Loading…</p>
           ) : !rows.length ? (
-            <p className="text-zinc-500">Results to follow Week 1 of the regular season.</p>
+            <p className="text-zinc-500">Results to follow Week 1.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-max w-full text-sm">
