@@ -696,7 +696,9 @@ function EditableCell({ value, onSave, type = "text", width = "w-24" }) {
 }
 
 // ---- Editable whole-dollar currency cell — "$" prefix, digits only, no
-// decimals, no native number-input spinner chevrons. ----
+// decimal entry, no native number-input spinner chevrons. Shows a ".00"
+// suffix when not focused (purely cosmetic); editing works on raw digits
+// so typing isn't fighting a fixed decimal tail. ----
 function CurrencyCell({ value, onSave, width = "w-24" }) {
   const toDigits = (v) => {
     const s = String(v ?? "");
@@ -706,7 +708,13 @@ function CurrencyCell({ value, onSave, width = "w-24" }) {
   };
 
   const [local, setLocal] = useState(toDigits(value));
-  useEffect(() => setLocal(toDigits(value)), [value]);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setLocal(toDigits(value));
+  }, [value, focused]);
+
+  const shown = local === "" || local === "-" ? "0" : local;
+  const displayValue = focused ? local : `${shown}.00`;
 
   return (
     <div className={`${width} relative`}>
@@ -716,9 +724,11 @@ function CurrencyCell({ value, onSave, width = "w-24" }) {
       <input
         type="text"
         inputMode="numeric"
-        value={local}
+        value={displayValue}
+        onFocus={() => setFocused(true)}
         onChange={(e) => setLocal(toDigits(e.target.value))}
         onBlur={() => {
+          setFocused(false);
           const num = local === "" || local === "-" ? 0 : Number(local);
           if (num !== Number(value ?? 0)) onSave(num);
         }}
