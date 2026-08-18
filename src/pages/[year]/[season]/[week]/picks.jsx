@@ -2,7 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  getDocFromCache,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import Image from "next/image";
 import { Unlock, Info } from "lucide-react";
 import { getScoreboard } from "../../../../lib/espnScoreboard";
@@ -99,6 +108,51 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+// The reads time out rather than erroring, which means they never settle at
+// all — so the useful question is which layer is stuck, not what Firestore
+// returned. Probe each one so a stuck page can report where it wedged.
+async function collectDiagnostics(err, startedAt) {
+  const out = [];
+  out.push(`err: ${err?.name || "?"} / ${err?.code || "no-code"}`);
+  out.push(`msg: ${err?.message || "(none)"}`);
+  out.push(`elapsed: ${Date.now() - startedAt}ms`);
+  out.push(`online: ${typeof navigator !== "undefined" ? navigator.onLine : "?"}`);
+  out.push(`visibility: ${typeof document !== "undefined" ? document.visibilityState : "?"}`);
+  out.push(
+    `standalone: ${
+      typeof window !== "undefined" &&
+      (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone)
+        ? "yes (PWA)"
+        : "no (browser)"
+    }`
+  );
+
+  const u = auth.currentUser;
+  out.push(`authUser: ${u ? `${u.uid.slice(0, 6)}…` : "NONE"}`);
+
+  // If this is what's hanging, Firestore can never issue its request and a
+  // read will sit there forever without ever failing.
+  if (u) {
+    const t0 = Date.now();
+    try {
+      await withTimeout(u.getIdToken(), 3000);
+      out.push(`getIdToken: ok (${Date.now() - t0}ms)`);
+    } catch (e) {
+      out.push(`getIdToken: STUCK/FAILED — ${e?.message || e} (${Date.now() - t0}ms)`);
+    }
+
+    const t1 = Date.now();
+    try {
+      await withTimeout(u.getIdToken(true), 3000); // force refresh
+      out.push(`forceRefresh: ok (${Date.now() - t1}ms)`);
+    } catch (e) {
+      out.push(`forceRefresh: STUCK/FAILED — ${e?.message || e} (${Date.now() - t1}ms)`);
+    }
+  }
+
+  return out.join("\n");
+}
+
 function pickSelectionsOnly(data) {
   const out = {};
   for (const [k, v] of Object.entries(data || {})) {
@@ -182,8 +236,31 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
   // family member's users/{profileId} doc id.
   const loadPicksFor = async (id) => {
     const seq = ++loadSeq.current;
+    const startedAt = Date.now();
     clearTimeout(autoRetryTimer.current);
     setLoadingPicks(true);
+
+    // Applies a loaded pair of snapshots to state.
+    const apply = (weekSnap, userSnap) => {
+      const profile = userSnap.exists() ? userSnap.data() : null;
+      setUserProfile(profile);
+
+      const data = weekSnap.exists() ? weekSnap.data() : null;
+      const nextPicks = data ? pickSelectionsOnly(data) : {};
+      const nextTieBreaker = data?.tieBreaker || "";
+
+      setPicks(nextPicks);
+      setTieBreaker(nextTieBreaker);
+      setSubmitted(data?.locked === true);
+      setSubmittedAt(data?.submittedAt || null);
+      setLastEditedAt(data?.lastEditedAt || data?.submittedAt || null); // prefer lastEditedAt
+
+      loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
+      autoRetries.current = 0;
+      setLoadingPicks(false);
+      setLoadError(null);
+      return profile;
+    };
 
     try {
       // Both reads at once — these used to be sequential, doubling the
@@ -201,37 +278,40 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       // A newer load started while this one was in flight — discard it.
       if (seq !== loadSeq.current) return null;
 
-      const profile = userSnap.exists() ? userSnap.data() : null;
-      setUserProfile(profile);
-
-      const data = weekSnap.exists() ? weekSnap.data() : null;
-      const nextPicks = data ? pickSelectionsOnly(data) : {};
-      const nextTieBreaker = data?.tieBreaker || "";
-
-      setPicks(nextPicks);
-      setTieBreaker(nextTieBreaker);
-      setSubmitted(data?.locked === true);
-      setSubmittedAt(data?.submittedAt || null);
-      setLastEditedAt(data?.lastEditedAt || data?.submittedAt || null); // prefer lastEditedAt
-
-      loadedSig.current = JSON.stringify({ picks: nextPicks, tieBreaker: nextTieBreaker });
-      autoRetries.current = 0;
-      setLoadingPicks(false);
-      setLoadError(null); // a slow load that beat the watchdog still recovers
-
-      return profile;
+      return apply(weekSnap, userSnap);
     } catch (err) {
       console.error("Failed to load picks", err);
+      if (seq !== loadSeq.current) return null;
+
+      // The network read wedged, but the SDK keeps an in-memory copy of
+      // anything already read this session. On a repeat visit that's a
+      // complete, correct copy of this week's doc — good enough to get the
+      // page working instead of showing an error.
+      try {
+        const [weekSnap, userSnap] = await Promise.all([
+          getDocFromCache(doc(db, "picks", id, "weeks", todayKey)),
+          getDocFromCache(doc(db, "users", id)),
+        ]);
+        if (seq !== loadSeq.current) return null;
+        console.warn("Served picks from local cache after a failed read");
+        return apply(weekSnap, userSnap);
+      } catch {
+        // Nothing cached — fall through to the error state.
+      }
       if (seq !== loadSeq.current) return null;
 
       // Clear the "already loaded this" marker, otherwise the guard in the
       // auth effect treats this failed attempt as done and never retries.
       loadedFor.current = null;
-      // Surface the Firestore error code — the difference between
-      // permission-denied, unavailable and a timeout says which layer is
-      // actually failing.
-      setLoadError({ code: err?.code || err?.message || "unknown" });
+      setLoadError({ code: err?.code || err?.message || "unknown", details: null });
       setLoadingPicks(false);
+
+      // Probe which layer is stuck and attach it for reporting.
+      collectDiagnostics(err, startedAt).then((details) => {
+        if (seq === loadSeq.current) {
+          setLoadError((prev) => (prev ? { ...prev, details } : prev));
+        }
+      });
 
       // Most of these are transient, so keep trying quietly for a bit before
       // leaving it to the user.
@@ -514,16 +594,37 @@ export default function PicksPage({ year, week, season, matchups, weekLabelSsr }
       )}
 
       {loadError && (
-        <div className="mb-4 text-center text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
-          Couldn&apos;t load your picks.{" "}
-          {loadingPicks ? (
-            <span className="font-semibold">Retrying…</span>
-          ) : (
-            <button onClick={retryLoad} className="font-semibold underline">
-              Try again
+        <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg py-2 px-3">
+          <div className="text-center">
+            Couldn&apos;t load your picks.{" "}
+            {loadingPicks ? (
+              <span className="font-semibold">Retrying…</span>
+            ) : (
+              <button onClick={retryLoad} className="font-semibold underline">
+                Try again
+              </button>
+            )}
+          </div>
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-center text-xs opacity-80">
+              Show details ({loadError.code})
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words text-left text-[11px] leading-snug opacity-90">
+              {loadError.details || "collecting…"}
+            </pre>
+            <button
+              onClick={() => {
+                const text = `picks load failure\nweek: ${todayKey}\ncode: ${loadError.code}\n${
+                  loadError.details || ""
+                }`;
+                navigator.clipboard?.writeText(text);
+              }}
+              className="mt-1 w-full text-center text-xs font-semibold underline"
+            >
+              Copy details
             </button>
-          )}
-          <div className="mt-1 text-xs opacity-70">({loadError.code})</div>
+          </details>
         </div>
       )}
 
