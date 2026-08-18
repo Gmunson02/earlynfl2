@@ -1,5 +1,4 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/router";
 import { auth, db } from "../../../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collectionGroup, getDocs, query, where } from "firebase/firestore";
@@ -7,10 +6,114 @@ import Image from "next/image";
 import Head from "next/head";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
+import { getScoreboard } from "../../../../lib/espnScoreboard";
+import { getWeekLabel } from "../../../../lib/weekLabels";
 import useWeekLabel from "../../../../hooks/useWeekLabel";
 
 const TYPE_MAP = { pre: 1, reg: 2, post: 3 };
 const MAX_SCENARIO_GAMES = 4;
+
+// Everything in a week's pick doc that isn't an eventId -> team selection.
+// adminUnlockUntil was missing here, so an admin-unlocked user's doc grew a
+// bogus "pick" entry keyed on that field.
+const PICK_DOC_SYSTEM_FIELDS = [
+  "tieBreaker",
+  "displayName",
+  "locked",
+  "submittedAt",
+  "lastEditedAt",
+  "weekKey",
+  "adminUnlockUntil",
+];
+
+// Once a second game has kicked off, picks are settled for the week. Before
+// that we keep re-reading them, which leaves room for the admin to hand
+// someone a late pick after they miss the Thursday night game.
+const GAMES_STARTED_BEFORE_PICKS_SETTLE = 2;
+
+// Shapes an ESPN scoreboard payload into the maps this page renders from.
+// Shared so the server-rendered first paint and the client refreshes can't
+// drift apart.
+function parseScoreboard(espnData) {
+  const eventMap = {};
+  const winners = {};
+
+  for (const event of espnData?.events || []) {
+    const comp = event?.competitions?.[0];
+    const comps = comp?.competitors || [];
+    const homeComp = comps.find((c) => c.homeAway === "home");
+    const awayComp = comps.find((c) => c.homeAway === "away");
+
+    const home = homeComp?.team;
+    const away = awayComp?.team;
+
+    eventMap[event.id] = {
+      date: event.date ?? null,
+      status: comp?.status?.type?.state ?? null,
+      period: comp?.status?.period ?? null,
+      displayClock: comp?.status?.displayClock ?? null,
+      home: {
+        abbr: home?.abbreviation || home?.shortDisplayName || "—",
+        logo: home?.logo ?? null,
+        short: home?.shortDisplayName ?? null,
+      },
+      away: {
+        abbr: away?.abbreviation || away?.shortDisplayName || "—",
+        logo: away?.logo ?? null,
+        short: away?.shortDisplayName ?? null,
+      },
+      homeScore: homeComp?.score != null ? Number(homeComp.score) : null,
+      awayScore: awayComp?.score != null ? Number(awayComp.score) : null,
+    };
+
+    if (comp?.status?.type?.state === "post") {
+      const w = comps.find((c) => c.winner);
+      if (w) winners[event.id] = w.team.shortDisplayName;
+    }
+  }
+
+  return { eventMap, winners };
+}
+
+// The scoreboard and the week label need no auth, so resolve them on the
+// server: the header, game columns and progress bar are then in the first
+// paint instead of waiting on auth to restore and a client round trip.
+// It also means router.query is already populated on first render.
+export async function getServerSideProps(context) {
+  const { year, week, season } = context.query;
+  const seasontype = TYPE_MAP[season] ?? 2;
+
+  try {
+    const [{ data }, weekLabel] = await Promise.all([
+      getScoreboard({ year, week, seasontype }),
+      getWeekLabel({ year, season: season || "reg", week }),
+    ]);
+    const { eventMap, winners } = parseScoreboard(data);
+    return {
+      props: {
+        year: String(year),
+        week: String(week),
+        season: String(season || "reg"),
+        ssrEventMap: eventMap,
+        ssrWinners: winners,
+        weekLabelSsr: weekLabel ?? null,
+      },
+    };
+  } catch (e) {
+    // Never fail the page on this — the client refresh will fill it in.
+    console.error("results SSR prefetch failed", e);
+    return {
+      props: {
+        year: String(year),
+        week: String(week),
+        season: String(season || "reg"),
+        ssrEventMap: {},
+        ssrWinners: {},
+        weekLabelSsr: null,
+      },
+    };
+  }
+}
 
 // A decided game with equal scores is a tie — no winner gets recorded for
 // it, so nobody's pick counts as correct or incorrect for that game.
@@ -23,21 +126,23 @@ const W_WINS = "w-[56px]  min-w-[56px]";
 const W_GAME = "w-[64px]  min-w-[64px] md:w-[80px] md:min-w-[80px]";
 const W_TB   = "w-[72px]  min-w-[72px]";
 
-export default function ScoresPage() {
-  const router = useRouter();
-  const { year, week, season } = router.query;
-  const weekLabel = useWeekLabel(year, season, week);
+export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners, weekLabelSsr }) {
+  const weekLabel = useWeekLabel(year, season, week, weekLabelSsr);
 
   const [state, setState] = useState({
     loading: true,
     submissions: [],
-    eventMap: {},
-    winners: {},
+    // Seeded from the server so the scoreboard is on screen immediately;
+    // only the participant rows wait on Firestore.
+    eventMap: ssrEventMap || {},
+    winners: ssrWinners || {},
   });
   const { loading, submissions, eventMap, winners } = state;
 
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Portrait-only: which users' pick grids are expanded
   const [expandedUsers, setExpandedUsers] = useState(new Set());
@@ -58,11 +163,10 @@ export default function ScoresPage() {
   const [pathToFirstUid, setPathToFirstUid] = useState(null);
 
   const pollTimer = useRef(null);
-  const isFirstLoad = useRef(true);
 
   const keyNew = `${year}-${season}-W${week}`;
 
-  const REFRESH_INTERVAL = 30_000;
+  const REFRESH_INTERVAL = 60_000;
 
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
@@ -77,124 +181,119 @@ export default function ScoresPage() {
     if (!year || !week || !season || !authReady) return;
 
     let cancelled = false;
-    isFirstLoad.current = true;
+    // Pick docs stop changing once the week is underway (see the constant
+    // above), so we hold them after that instead of re-reading every user's
+    // doc each refresh. Display names are re-read every time so a rename
+    // shows up straight away.
+    let cachedPicks = null;
 
-    const fetchData = async () => {
-      // Only show the loading state on the very first load — background
-      // auto-refreshes shouldn't flash the whole page back to "Loading...".
-      if (isFirstLoad.current) setState((s) => ({ ...s, loading: true }));
-
-      const seasontype = TYPE_MAP[season] ?? 2;
-      const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
-
-      const [weeksSnap, espnData, nameMap] = await Promise.all([
-        getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew))),
-        fetch(apiUrl).then((r) => r.json()),
-        fetchDisplayNameMap(),
-      ]);
-
-      if (cancelled) return;
-
-      // Always show the user's current display name, not whatever was
-      // recorded at pick-submission time — falls back to the snapshot only
-      // if their profile doc is missing (e.g. a deleted account).
-      const picks = [];
-      for (const docSnap of weeksSnap.docs) {
+    const buildPicks = (weeksSnap) =>
+      weeksSnap.docs.map((docSnap) => {
         const userData = docSnap.data();
-        const uid = docSnap.ref.parent.parent.id;
-
-        const entries = Object.entries(userData)
-          .filter(([k]) => !["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey"].includes(k))
-          .map(([eventID, team]) => ({ eventID, teamName: team }));
-
-        picks.push({
-          uid,
-          displayName: nameMap.get(uid) || userData.displayName || "Unknown",
-          picks: entries,
+        return {
+          uid: docSnap.ref.parent.parent.id,
+          // Kept as a fallback for accounts whose profile doc is gone.
+          storedName: userData.displayName || null,
+          picks: Object.entries(userData)
+            .filter(([k]) => !PICK_DOC_SYSTEM_FIELDS.includes(k))
+            .map(([eventID, team]) => ({ eventID, teamName: team })),
           tieBreaker: userData.tieBreaker || "",
-        });
-      }
-
-      const tempMap = {};
-      const winnerMap = {};
-      for (const event of espnData?.events || []) {
-        const comp = event?.competitions?.[0];
-        const comps = comp?.competitors || [];
-        const homeComp = comps.find((c) => c.homeAway === "home");
-        const awayComp = comps.find((c) => c.homeAway === "away");
-
-        const home = homeComp?.team;
-        const away = awayComp?.team;
-
-        const homeScore = homeComp?.score != null ? Number(homeComp.score) : null;
-        const awayScore = awayComp?.score != null ? Number(awayComp.score) : null;
-
-        tempMap[event.id] = {
-          date: event.date,
-          status: comp?.status?.type?.state,
-          period: comp?.status?.period,
-          displayClock: comp?.status?.displayClock,
-          home: {
-            abbr: home?.abbreviation || home?.shortDisplayName || "—",
-            logo: home?.logo,
-            short: home?.shortDisplayName,
-          },
-          away: {
-            abbr: away?.abbreviation || away?.shortDisplayName || "—",
-            logo: away?.logo,
-            short: away?.shortDisplayName,
-          },
-          homeScore,
-          awayScore,
         };
+      });
 
-        if (comp?.status?.type?.state === "post") {
-          const w = comps.find((c) => c.winner);
-          if (w) winnerMap[event.id] = w.team.shortDisplayName;
+    const withCurrentNames = (picks, nameMap) =>
+      picks.map((p) => ({
+        ...p,
+        displayName: nameMap.get(p.uid) || p.storedName || "Unknown",
+      }));
+
+    const run = async ({ refreshPicks = false } = {}) => {
+      const needPicks = refreshPicks || !cachedPicks;
+
+      try {
+        const seasontype = TYPE_MAP[season] ?? 2;
+        const apiUrl = `/api/scoreboard?seasontype=${seasontype}&week=${week}&year=${year}`;
+
+        const [espnData, weeksSnap, nameMap] = await Promise.all([
+          fetch(apiUrl).then((r) => r.json()),
+          needPicks
+            ? getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", keyNew)))
+            : null,
+          fetchDisplayNameMap(),
+        ]);
+
+        if (cancelled) return;
+
+        if (needPicks) cachedPicks = buildPicks(weeksSnap);
+        const picks = withCurrentNames(cachedPicks, nameMap);
+
+        const { eventMap: tempMap, winners: winnerMap } = parseScoreboard(espnData);
+
+        const enriched = picks.map((entry) => {
+          const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+          const winnerCount = Object.keys(tempMap).reduce(
+            (acc, id) => acc + (winnerMap[id] && winnerMap[id] === picksMap.get(id) ? 1 : 0),
+            0
+          );
+          return { ...entry, winnerCount, picksMap };
+        });
+
+        enriched.sort((a, b) => b.winnerCount - a.winnerCount);
+        let lastWins = null, rank = 0, skip = 1;
+        const ranked = enriched.map((entry) => {
+          if (entry.winnerCount !== lastWins) { rank += skip; skip = 1; } else { skip++; }
+          lastWins = entry.winnerCount;
+          return { ...entry, rank };
+        });
+
+        setState({
+          loading: false,
+          submissions: ranked,
+          eventMap: tempMap,
+          winners: winnerMap,
+        });
+        setLoadError(false);
+        setLastUpdated(new Date());
+
+        // Keep polling while any game is unfinished; stop once the week is
+        // final, and pause while the tab is hidden (resumed by the listener
+        // below) rather than refreshing in the background for nobody.
+        const started = Object.values(tempMap).filter(
+          (g) => g.status === "in" || g.status === "post"
+        ).length;
+        const anyUnfinished = Object.values(tempMap).some((g) => g.status !== "post");
+
+        if (anyUnfinished && !cancelled && !document.hidden) {
+          pollTimer.current = setTimeout(
+            () => run({ refreshPicks: started < GAMES_STARTED_BEFORE_PICKS_SETTLE }),
+            REFRESH_INTERVAL
+          );
         }
-      }
-
-      const enriched = picks.map((entry) => {
-        const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
-        const winnerCount = Object.keys(tempMap).reduce(
-          (acc, id) => acc + (winnerMap[id] && winnerMap[id] === picksMap.get(id) ? 1 : 0),
-          0
-        );
-        return { ...entry, winnerCount };
-      });
-
-      enriched.sort((a, b) => b.winnerCount - a.winnerCount);
-      let lastWins = null, rank = 0, skip = 1;
-      const ranked = enriched.map((entry) => {
-        if (entry.winnerCount !== lastWins) { rank += skip; skip = 1; } else { skip++; }
-        lastWins = entry.winnerCount;
-        return { ...entry, rank };
-      });
-
-      setState({
-        loading: false,
-        submissions: ranked,
-        eventMap: tempMap,
-        winners: winnerMap,
-      });
-      setLastUpdated(new Date());
-      isFirstLoad.current = false;
-
-      // Keep polling every 30s while any game hasn't finished; stop once the
-      // whole week is final so we're not refreshing forever for no reason.
-      const anyUnfinished = Object.values(tempMap).some((g) => g.status !== "post");
-      if (anyUnfinished && !cancelled) {
-        pollTimer.current = setTimeout(fetchData, REFRESH_INTERVAL);
+      } catch (err) {
+        console.error("Failed to load results", err);
+        if (cancelled) return;
+        setLoadError(true);
+        setState((s) => ({ ...s, loading: false }));
       }
     };
 
-    fetchData();
+    // Returning to a backgrounded tab should show current scores right away
+    // instead of waiting out a poll interval.
+    const onVisibilityChange = () => {
+      if (cancelled || document.hidden) return;
+      clearTimeout(pollTimer.current);
+      run();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    run({ refreshPicks: true });
 
     return () => {
       cancelled = true;
       clearTimeout(pollTimer.current);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [year, week, season, authReady]);
+  }, [year, week, season, authReady, reloadKey]);
 
   const uniqueEventIDs = useMemo(() => {
     return Object.keys(eventMap).sort(
@@ -448,7 +547,23 @@ export default function ScoresPage() {
     return { total, post, live, pre };
   }, [uniqueEventIDs, eventMap]);
 
-  if (loading && !lastUpdated) return <div className="p-6 text-center">Loading...</div>;
+  const hasScoreboard = Object.keys(eventMap).length > 0;
+
+  if (loadError && !lastUpdated && !hasScoreboard) {
+    return (
+      <div className="p-6 text-center">
+        <p className="mb-3 text-sm text-red-600 dark:text-red-400">Couldn&apos;t load results.</p>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (loading && !lastUpdated && !hasScoreboard) return <div className="p-6 text-center">Loading...</div>;
 
   const borderClass = "border border-gray-300";
   const truncate14 = (str) => (!str ? "" : str.length > 14 ? `${str.slice(0, 13)}…` : str);
@@ -542,13 +657,13 @@ export default function ScoresPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white px-2 py-4 sm:px-4 sm:py-8 text-[15px] sm:text-base">
       <Head>
-        <title>{weekLabel || `Week ${week}`} Scores</title>
+        <title>{weekLabel ? `${weekLabel} Scores` : "Scores"}</title>
       </Head>
 
       {/* Header (same width feel as table via centered container) */}
       <section className="max-w-8xl mx-auto mb-4 px-1 sm:px-0">
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-          {weekLabel || `Week ${week}`}
+          {weekLabel || "Scores"}
         </h1>
 
         <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -621,9 +736,16 @@ export default function ScoresPage() {
           </thead>
 
           <tbody>
+            {submissions.length === 0 && (
+              <tr>
+                <td colSpan={uniqueEventIDs.length + 3} className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {loadError ? "Couldn't load picks." : "Loading picks…"}
+                </td>
+              </tr>
+            )}
             {submissions.map((entry, index) => {
               const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
-              const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+              const picksMap = entry.picksMap;
 
               return (
                 <tr key={entry.uid} className={rowBg}>
@@ -704,9 +826,16 @@ export default function ScoresPage() {
           </thead>
 
           <tbody>
+            {submissions.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {loadError ? "Couldn't load picks." : "Loading picks…"}
+                </td>
+              </tr>
+            )}
             {submissions.map((entry, index) => {
               const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
-              const picksMap = new Map(entry.picks.map((p) => [p.eventID, p.teamName]));
+              const picksMap = entry.picksMap;
               const isOpen = expandedUsers.has(entry.uid);
 
               return (
