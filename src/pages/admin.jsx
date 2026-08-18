@@ -743,6 +743,8 @@ export default function AdminPage() {
   const adminStatus = useIsAdmin();
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [users, setUsers] = useState([]);
   const [ledger, setLedger] = useState({});
   const [authInfo, setAuthInfo] = useState({}); // uid -> { lastSignInTime, creationTime, providers }
@@ -777,67 +779,91 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (adminStatus !== "admin") return;
+    let cancelled = false;
+
     const load = async () => {
       setLoading(true);
-      const [usersSnap, ledgerSnap, weeksSnap, authInfoResult] = await Promise.all([
-        getDocs(collection(db, "users")),
-        getDocs(collection(db, "admin_ledger")),
-        getDocs(query(collection(db, "schedules", SEASON_ID, "weeks"), orderBy("order", "asc"))),
-        httpsCallable(functions, "adminListAuthUsers")().catch((err) => {
-          console.error("adminListAuthUsers failed:", err);
-          return { data: { users: [] } };
-        }),
-      ]);
+      setLoadError(false);
+      try {
+        // The weekly_results read used to wait for the others to finish,
+        // purely to learn the season year — which SEASON_ID already encodes.
+        // Deriving it here lets all five run at once.
+        const seasonYear = Number(SEASON_ID.split("-")[1]);
 
-      const usersList = usersSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
-      usersList.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
-      setUsers(usersList);
+        const [usersSnap, ledgerSnap, weeksSnap, authInfoResult, resultsSnap] = await Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "admin_ledger")),
+          getDocs(query(collection(db, "schedules", SEASON_ID, "weeks"), orderBy("order", "asc"))),
+          httpsCallable(functions, "adminListAuthUsers")().catch((err) => {
+            console.error("adminListAuthUsers failed:", err);
+            return { data: { users: [] } };
+          }),
+          Number.isFinite(seasonYear)
+            ? getDocs(query(collection(db, "weekly_results"), where("year", "==", seasonYear)))
+            : null,
+        ]);
 
-      const ledgerMap = {};
-      ledgerSnap.forEach((d) => (ledgerMap[d.id] = d.data()));
-      setLedger(ledgerMap);
+        if (cancelled) return;
 
-      const authInfoMap = {};
-      (authInfoResult?.data?.users || []).forEach((u) => (authInfoMap[u.uid] = u));
-      setAuthInfo(authInfoMap);
+        const usersList = usersSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+        usersList.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+        setUsers(usersList);
 
-      const weeks = weeksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setWeeksList(weeks);
+        const ledgerMap = {};
+        ledgerSnap.forEach((d) => (ledgerMap[d.id] = d.data()));
+        setLedger(ledgerMap);
 
-      // Same rule as useScheduleWeek: default to the earliest week that
-      // doesn't have a weekly_results doc yet, not the week whose kickoff
-      // window happens to contain "now" (that left the picker stuck on a
-      // just-finished week for days).
-      const seasonYear = weeks[0]?.seasonYear;
-      let computedIds = new Set();
-      if (seasonYear != null) {
-        const resultsSnap = await getDocs(
-          query(collection(db, "weekly_results"), where("year", "==", seasonYear))
-        );
-        computedIds = new Set(resultsSnap.docs.map((d) => d.id));
+        const authInfoMap = {};
+        (authInfoResult?.data?.users || []).forEach((u) => (authInfoMap[u.uid] = u));
+        setAuthInfo(authInfoMap);
+
+        const weeks = weeksSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setWeeksList(weeks);
+
+        // Same rule as useScheduleWeek: default to the earliest week that
+        // doesn't have a weekly_results doc yet, not the week whose kickoff
+        // window happens to contain "now" (that left the picker stuck on a
+        // just-finished week for days).
+        const computedIds = new Set((resultsSnap?.docs || []).map((d) => d.id));
+        const weekDocId = (w) => `${w.seasonYear}-${w.seasonType}-W${w.value}`;
+        const activeIdx = weeks.findIndex((w) => !computedIds.has(weekDocId(w)));
+        setSelectedWeekId(weeks[activeIdx]?.id || weeks[weeks.length - 1]?.id || null);
+      } catch (err) {
+        console.error("Admin load failed:", err);
+        if (!cancelled) setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      const weekDocId = (w) => `${w.seasonYear}-${w.seasonType}-W${w.value}`;
-      const activeIdx = weeks.findIndex((w) => !computedIds.has(weekDocId(w)));
-      setSelectedWeekId(weeks[activeIdx]?.id || weeks[weeks.length - 1]?.id || null);
-
-      setLoading(false);
     };
+
     load();
-  }, [adminStatus]);
+    return () => {
+      cancelled = true;
+    };
+  }, [adminStatus, reloadKey]);
 
   const selectedWeek = useMemo(() => weeksList.find((w) => w.id === selectedWeekId) || null, [weeksList, selectedWeekId]);
   const weekKey = selectedWeek ? `${selectedWeek.seasonYear}-${selectedWeek.seasonType}-W${selectedWeek.value}` : null;
 
   useEffect(() => {
     if (!weekKey) return;
+    let cancelled = false;
     (async () => {
-      const snap = await getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", weekKey)));
-      const locked = new Set();
-      snap.forEach((d) => {
-        if (d.data()?.locked === true) locked.add(d.ref.parent.parent.id);
-      });
-      setSubmittedUids(locked);
+      try {
+        const snap = await getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", weekKey)));
+        if (cancelled) return; // a different week was picked mid-flight
+        const locked = new Set();
+        snap.forEach((d) => {
+          if (d.data()?.locked === true) locked.add(d.ref.parent.parent.id);
+        });
+        setSubmittedUids(locked);
+      } catch (err) {
+        console.error("Submitted-picks lookup failed:", err);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [weekKey]);
 
   const kickoff = useMemo(() => tsToDate(selectedWeek?.firstGame), [selectedWeek]);
@@ -992,6 +1018,15 @@ export default function AdminPage() {
                 {missingUsers.map((u) => u.displayName || u.uid).join(", ")}
               </div>
             )}
+          </div>
+        )}
+
+        {loadError && !loading && (
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+            Couldn&apos;t load admin data.{" "}
+            <button onClick={() => setReloadKey((k) => k + 1)} className="font-semibold underline">
+              Try again
+            </button>
           </div>
         )}
 
