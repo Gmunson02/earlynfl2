@@ -4,6 +4,11 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
+        {/* Favicon */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+
         {/* PWA */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#4f46e5" />
