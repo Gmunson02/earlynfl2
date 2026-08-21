@@ -225,15 +225,31 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Countdown */}
+          {/* Countdown — once the first game of the week has kicked off,
+              isBeforeKickoff goes false and countdown itself just reads
+              "—" (see useScheduleWeek), which doesn't tell you WHY there's
+              no countdown. Swap the whole card to an explicit locked
+              message instead of a blank dash. */}
           <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
-            <h2 className="text-sm sm:text-base font-semibold mb-1">Countdown to Kickoff</h2>
-            <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">
-              {loading ? "…" : countdown}
-            </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Picks lock at kickoff of the first game
-            </p>
+            <h2 className="text-sm sm:text-base font-semibold mb-1">
+              {loading || isBeforeKickoff ? "Countdown to Kickoff" : "Picks Locked"}
+            </h2>
+            {loading ? (
+              <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">…</p>
+            ) : isBeforeKickoff ? (
+              <>
+                <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">
+                  {countdown}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Picks lock at kickoff of the first game
+                </p>
+              </>
+            ) : (
+              <p className="text-sm sm:text-base font-bold text-rose-600 dark:text-rose-400">
+                🔒 First game has kicked off — all picks are locked for the week.
+              </p>
+            )}
           </div>
 
           {/* Last week's winner(s). Nothing shows here until the first week
