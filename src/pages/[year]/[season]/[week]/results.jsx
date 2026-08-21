@@ -822,13 +822,19 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         </table>
       </div>
 
-      {/* Expandable per-user view (portrait / narrow screens).
-          No header row here on purpose — it was reading as "jumpy" against
-          the expand/collapse rows below it, moving around a lot as you
-          scrolled. Removed for now rather than fight that; rank/name/wins
-          are self-explanatory without column labels. */}
+      {/* Expandable per-user view (portrait / narrow screens) */}
       <div className="sm:hidden max-w-8xl mx-auto pb-28">
         <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
+          <thead className="bg-slate-800 text-white shadow-sm">
+            <tr>
+              <th className={`w-[48px] px-2 py-1 text-center font-bold ${borderClass}`}>Rank</th>
+              <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "0.5rem" }}>
+                User
+              </th>
+              <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
+            </tr>
+          </thead>
+
           <tbody>
             {submissions.length === 0 && (
               <tr>
@@ -894,6 +900,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
                             const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
+                            const opponentScore = pickedHome ? g?.awayScore : g?.homeScore;
                             const isPending = g?.status !== "post";
                             // Solid, high-contrast fills (not a pale tint) so the
                             // result reads at a glance for anyone with lower
@@ -907,10 +914,17 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               : "bg-rose-300 text-slate-900";
                             const showScore = g?.status === "in" || g?.status === "post";
 
-                            // Just the picked team — showing both teams read as
-                            // "who's home vs away" and made it unclear which one
-                            // was the actual pick. No live clock either; tap the
-                            // box for the full game if you need it.
+                            // Just the picked team's logo/name — showing both
+                            // teams read as "who's home vs away" and made it
+                            // unclear which one was the actual pick. But the
+                            // score still needs both numbers (16-14, not just
+                            // "16") or the result isn't actually legible. No
+                            // live clock either; tap the box for the full game.
+                            const scoreText =
+                              showScore && pickScore != null && opponentScore != null
+                                ? ` ${pickScore}-${opponentScore}`
+                                : "";
+
                             return (
                               <div
                                 key={eventID}
@@ -918,15 +932,15 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                   e.stopPropagation();
                                   setSelectedGameID(eventID);
                                 }}
-                                className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 min-h-[52px] cursor-pointer active:opacity-80 ${bgColor}`}
+                                className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 min-h-[44px] cursor-pointer active:opacity-80 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={36} height={36} className="shrink-0" />
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={30} height={30} className="shrink-0" />
                                 ) : (
-                                  <span className="text-gray-400 w-9 text-center">–</span>
+                                  <span className="text-gray-400 w-8 text-center">–</span>
                                 )}
-                                <span className="text-lg font-extrabold font-mono truncate">
-                                  {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
+                                <span className="text-base font-extrabold font-mono truncate">
+                                  {team?.label || "—"}{scoreText}
                                 </span>
                               </div>
                             );
