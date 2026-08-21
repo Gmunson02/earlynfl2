@@ -817,19 +817,13 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         </table>
       </div>
 
-      {/* Expandable per-user view (portrait / narrow screens) */}
+      {/* Expandable per-user view (portrait / narrow screens).
+          No header row here on purpose — it was reading as "jumpy" against
+          the expand/collapse rows below it, moving around a lot as you
+          scrolled. Removed for now rather than fight that; rank/name/wins
+          are self-explanatory without column labels. */}
       <div className="sm:hidden max-w-8xl mx-auto pb-28">
         <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
-          <thead className="bg-slate-800 text-white shadow-sm">
-            <tr>
-              <th className={`w-[48px] px-2 py-1 text-center font-bold ${borderClass}`}>Rank</th>
-              <th className={`py-1 text-left font-bold ${borderClass}`} style={{ paddingLeft: "0.5rem" }}>
-                User
-              </th>
-              <th className={`w-[56px] px-2 py-1 text-center font-bold ${borderClass}`}>Wins</th>
-            </tr>
-          </thead>
-
           <tbody>
             {submissions.length === 0 && (
               <tr>
@@ -885,7 +879,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                           );
                         })()}
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2.5">
                           {uniqueEventIDs.map((eventID) => {
                             const g = eventMap[eventID];
                             const pickTeam = picksMap.get(eventID);
@@ -899,13 +893,16 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               : { abbr: g?.home?.abbr, score: g?.homeScore };
                             const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
                             const isPending = g?.status !== "post";
+                            // Solid, high-contrast fills (not a pale tint) so the
+                            // result reads at a glance for anyone with lower
+                            // vision — same colors in light and dark mode.
                             const bgColor = isPending
-                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-900 dark:text-white"
+                              ? "bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-white"
                               : isGameTied(g)
-                              ? "bg-blue-200 dark:bg-blue-300 text-gray-900"
+                              ? "bg-sky-300 text-slate-900"
                               : correct
-                              ? "bg-green-200 dark:bg-green-300 text-gray-900"
-                              : "bg-red-200 dark:bg-red-300 text-gray-900";
+                              ? "bg-emerald-300 text-slate-900"
+                              : "bg-rose-300 text-slate-900";
                             const showScore = g?.status === "in" || g?.status === "post";
                             const isLive = g?.status === "in";
 
@@ -916,27 +913,27 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                   e.stopPropagation();
                                   setSelectedGameID(eventID);
                                 }}
-                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 cursor-pointer active:opacity-80 ${bgColor}`}
+                                className={`flex items-center gap-2.5 rounded-lg px-3 py-3 min-h-[64px] cursor-pointer active:opacity-80 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} className="shrink-0" />
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={44} height={44} className="shrink-0" />
                                 ) : (
-                                  <span className="text-gray-400 w-7 text-center">–</span>
+                                  <span className="text-gray-400 w-11 text-center text-lg">–</span>
                                 )}
-                                <div className="flex flex-col leading-tight font-mono flex-1">
-                                  <span className="text-sm font-bold">
+                                <div className="flex flex-col leading-tight font-mono flex-1 min-w-0">
+                                  <span className="text-xl font-extrabold truncate">
                                     {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
                                   </span>
-                                  <span className="text-[10px] opacity-70">
+                                  <span className="text-sm font-semibold opacity-80 truncate">
                                     vs {opponent.abbr}{showScore && opponent.score != null ? ` ${opponent.score}` : ""}
                                   </span>
                                 </div>
                                 {isLive && (
                                   <div className="flex flex-col items-end leading-tight font-mono shrink-0">
-                                    <span className="text-[10px] font-semibold text-rose-500">
+                                    <span className="text-xs font-bold text-rose-600">
                                       {g?.period ? `Q${g.period}` : ""}
                                     </span>
-                                    <span className="text-[10px] opacity-70">{g?.displayClock || ""}</span>
+                                    <span className="text-xs opacity-80">{g?.displayClock || ""}</span>
                                   </div>
                                 )}
                               </div>
