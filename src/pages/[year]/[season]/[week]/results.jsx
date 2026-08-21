@@ -899,8 +899,6 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                             const team = pickedHome
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
-                            const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
-                            const opponentScore = pickedHome ? g?.awayScore : g?.homeScore;
                             const isPending = g?.status !== "post";
                             // Solid, high-contrast fills (not a pale tint) so the
                             // result reads at a glance for anyone with lower
@@ -912,19 +910,10 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               : correct
                               ? "bg-emerald-300 text-slate-900"
                               : "bg-rose-300 text-slate-900";
-                            const showScore = g?.status === "in" || g?.status === "post";
 
-                            // Just the picked team's logo/name — showing both
-                            // teams read as "who's home vs away" and made it
-                            // unclear which one was the actual pick. But the
-                            // score still needs both numbers (16-14, not just
-                            // "16") or the result isn't actually legible. No
-                            // live clock either; tap the box for the full game.
-                            const scoreText =
-                              showScore && pickScore != null && opponentScore != null
-                                ? ` ${pickScore}-${opponentScore}`
-                                : "";
-
+                            // Just the picked team's logo/name, no score — the
+                            // color fill already says correct/incorrect/tied;
+                            // tap the box for the actual final score.
                             return (
                               <div
                                 key={eventID}
@@ -940,7 +929,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                   <span className="text-gray-400 w-8 text-center">–</span>
                                 )}
                                 <span className="text-base font-extrabold font-mono truncate">
-                                  {team?.label || "—"}{scoreText}
+                                  {team?.label || "—"}
                                 </span>
                               </div>
                             );
