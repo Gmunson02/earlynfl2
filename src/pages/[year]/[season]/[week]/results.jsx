@@ -703,25 +703,30 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       </section>
 
       {/* Table (landscape / wide screens)
-          Bounded, self-scrolling pane (both axes) rather than letting the
-          whole page scroll past it -- position: sticky on the <th> cells
-          is unreliable in WebKit (especially iOS PWA standalone mode) when
-          the vertical scroll happens on the window while only the
-          horizontal scroll is contained here; making this div the actual
-          scroll container for BOTH axes is the robust cross-browser fix. */}
-      <div className="hidden sm:block max-w-8xl mx-auto mb-28 overflow-auto max-h-[80vh]">
+          Vertical scroll is just the normal page scroll now — same as every
+          other page in the app, including the portrait table below. It used
+          to be bounded to a max-h-[80vh] box so the header row could stick
+          to the TOP of that box reliably. But mobile browsers don't compute
+          "vh" consistently (it shifts with the address bar), and the page
+          itself was never prevented from also scrolling — so you got two
+          competing scroll regions fighting over the same swipe, which is
+          exactly the "alternates between mobile and browser scrolling" bug.
+          Only the horizontal axis is its own scroll container here now; the
+          frozen User/Wins columns (sticky left-*) are unaffected — that part
+          was already fine and is left exactly as-is. */}
+      <div className="hidden sm:block max-w-8xl mx-auto mb-28 overflow-x-auto">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
               <th
-                className={`${W_USER} py-1 sticky top-0 left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}
+                className={`${W_USER} py-1 sticky left-0 z-30 bg-slate-800 font-bold text-left ${borderClass}`}
                 style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
               >
                 User
               </th>
               <th
-                className={`${W_WINS} px-2 py-1 text-center font-bold sticky top-0 left-[168px] z-30 bg-slate-800 ${borderClass}`}
+                className={`${W_WINS} px-2 py-1 text-center font-bold sticky left-[168px] z-30 bg-slate-800 ${borderClass}`}
               >
                 Wins
               </th>
@@ -730,13 +735,13 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                 const g = eventMap[id];
                 const showScore = g?.status === "in" || g?.status === "post";
                 return (
-                  <th key={id} className={`${W_GAME} px-1 py-1 text-center font-bold sticky top-0 z-20 bg-slate-800 ${borderClass}`}>
+                  <th key={id} className={`${W_GAME} px-1 py-1 text-center font-bold bg-slate-800 ${borderClass}`}>
                     <HeaderCompact g={g} showScores={showScore} />
                   </th>
                 );
               })}
 
-              <th className={`${W_TB} px-2 py-1 text-center font-bold sticky top-0 z-20 bg-slate-800 ${borderClass}`}>TB</th>
+              <th className={`${W_TB} px-2 py-1 text-center font-bold bg-slate-800 ${borderClass}`}>TB</th>
             </tr>
           </thead>
 
