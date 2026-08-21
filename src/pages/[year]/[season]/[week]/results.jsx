@@ -888,9 +888,6 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                             const team = pickedHome
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
-                            const opponent = pickedHome
-                              ? { abbr: g?.away?.abbr, score: g?.awayScore }
-                              : { abbr: g?.home?.abbr, score: g?.homeScore };
                             const pickScore = pickedHome ? g?.homeScore : g?.awayScore;
                             const isPending = g?.status !== "post";
                             // Solid, high-contrast fills (not a pale tint) so the
@@ -904,8 +901,11 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               ? "bg-emerald-300 text-slate-900"
                               : "bg-rose-300 text-slate-900";
                             const showScore = g?.status === "in" || g?.status === "post";
-                            const isLive = g?.status === "in";
 
+                            // Just the picked team — showing both teams read as
+                            // "who's home vs away" and made it unclear which one
+                            // was the actual pick. No live clock either; tap the
+                            // box for the full game if you need it.
                             return (
                               <div
                                 key={eventID}
@@ -913,29 +913,16 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                   e.stopPropagation();
                                   setSelectedGameID(eventID);
                                 }}
-                                className={`flex items-center gap-2.5 rounded-lg px-3 py-3 min-h-[64px] cursor-pointer active:opacity-80 ${bgColor}`}
+                                className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 min-h-[52px] cursor-pointer active:opacity-80 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={44} height={44} className="shrink-0" />
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={36} height={36} className="shrink-0" />
                                 ) : (
-                                  <span className="text-gray-400 w-11 text-center text-lg">–</span>
+                                  <span className="text-gray-400 w-9 text-center">–</span>
                                 )}
-                                <div className="flex flex-col leading-tight font-mono flex-1 min-w-0">
-                                  <span className="text-xl font-extrabold truncate">
-                                    {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
-                                  </span>
-                                  <span className="text-sm font-semibold opacity-80 truncate">
-                                    vs {opponent.abbr}{showScore && opponent.score != null ? ` ${opponent.score}` : ""}
-                                  </span>
-                                </div>
-                                {isLive && (
-                                  <div className="flex flex-col items-end leading-tight font-mono shrink-0">
-                                    <span className="text-xs font-bold text-rose-600">
-                                      {g?.period ? `Q${g.period}` : ""}
-                                    </span>
-                                    <span className="text-xs opacity-80">{g?.displayClock || ""}</span>
-                                  </div>
-                                )}
+                                <span className="text-lg font-extrabold font-mono truncate">
+                                  {team?.label || "—"}{showScore && pickScore != null ? ` ${pickScore}` : ""}
+                                </span>
                               </div>
                             );
                           })}
