@@ -900,6 +900,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               ? { logo: g?.home?.logo, label: g?.home?.abbr }
                               : { logo: g?.away?.logo, label: g?.away?.abbr };
                             const isPending = g?.status !== "post";
+                            const isLive = g?.status === "in";
                             // Solid, high-contrast fills (not a pale tint) so the
                             // result reads at a glance for anyone with lower
                             // vision — same colors in light and dark mode.
@@ -910,6 +911,9 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                               : correct
                               ? "bg-emerald-300 text-slate-900"
                               : "bg-rose-300 text-slate-900";
+                            // Live games get a blue ring so they stand out while
+                            // still in progress, distinct from the pending gray fill.
+                            const liveRing = isLive ? "ring-2 ring-blue-500" : "";
 
                             // Just the picked team's logo/name, no score — the
                             // color fill already says correct/incorrect/tied;
@@ -921,7 +925,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                   e.stopPropagation();
                                   setSelectedGameID(eventID);
                                 }}
-                                className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 min-h-[44px] cursor-pointer active:opacity-80 ${bgColor}`}
+                                className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 min-h-[44px] cursor-pointer active:opacity-80 ${bgColor} ${liveRing}`}
                               >
                                 {pickTeam && team?.logo ? (
                                   <Image src={team.logo} alt={team?.label || "Team"} width={30} height={30} className="shrink-0" />
