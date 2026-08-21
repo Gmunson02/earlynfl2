@@ -919,14 +919,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                 className={`flex items-center gap-2 rounded-md px-2 py-1.5 min-h-11 cursor-pointer active:opacity-80 ${bgColor}`}
                               >
                                 {pickTeam && team?.logo ? (
-                                  <div className="flex flex-col items-center shrink-0">
-                                    <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} />
-                                    {isPending && (
-                                      <span className="text-[8px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400 leading-none mt-0.5">
-                                        Pick
-                                      </span>
-                                    )}
-                                  </div>
+                                  <Image src={team.logo} alt={team?.label || "Team"} width={28} height={28} className="shrink-0" />
                                 ) : (
                                   <span className="text-gray-400 w-7 text-center">–</span>
                                 )}
@@ -944,12 +937,6 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                                       {g?.period ? `Q${g.period}` : ""}
                                     </span>
                                     <span className="text-[10px] opacity-70">{g?.displayClock || ""}</span>
-                                  </div>
-                                )}
-                                {isPending && !isLive && g?.date && (
-                                  <div className="flex flex-col items-end leading-tight font-mono shrink-0">
-                                    <span className="text-[10px] font-semibold">{formatGameDate(g.date)}</span>
-                                    <span className="text-[10px] opacity-70">{formatGameTimeET(g.date)}</span>
                                   </div>
                                 )}
                               </div>
