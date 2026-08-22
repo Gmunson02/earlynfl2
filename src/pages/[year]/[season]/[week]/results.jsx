@@ -619,6 +619,74 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
     return { kind: "verdict", text };
   };
 
+  // Path to 1st callout + the color-coded game-by-game pick grid for one
+  // user. Shared by the compact card list's inline expand AND the desktop
+  // table's "click a name" modal, so the two are guaranteed to actually
+  // match instead of being two copies that can quietly drift apart.
+  const renderUserBreakdown = (entry) => {
+    const picksMap = entry.picksMap;
+    const p2f = getPathToFirst(entry.uid);
+
+    return (
+      <>
+        {p2f && (
+          <div
+            className={`mb-2 rounded-md px-2 py-1.5 text-xs ${
+              p2f.kind === "guardrail"
+                ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
+                : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100"
+            }`}
+          >
+            <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
+            {p2f.text}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {uniqueEventIDs.map((eventID) => {
+            const g = eventMap[eventID];
+            const pickTeam = picksMap.get(eventID);
+            const correct = winners[eventID] === pickTeam;
+            const pickedHome = g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
+            const team = pickedHome
+              ? { logo: g?.home?.logo, label: g?.home?.abbr }
+              : { logo: g?.away?.logo, label: g?.away?.abbr };
+            const isPending = g?.status !== "post";
+            const isLive = g?.status === "in";
+            const bgColor = isPending
+              ? "bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-white"
+              : isGameTied(g)
+              ? "bg-sky-300 text-slate-900"
+              : correct
+              ? "bg-emerald-300 text-slate-900"
+              : "bg-rose-300 text-slate-900";
+            const liveRing = isLive ? "ring-2 ring-blue-500" : "";
+
+            return (
+              <div
+                key={eventID}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedGameID(eventID);
+                }}
+                className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 min-h-[44px] cursor-pointer active:opacity-80 ${bgColor} ${liveRing}`}
+              >
+                {pickTeam && team?.logo ? (
+                  <Image src={team.logo} alt={team?.label || "Team"} width={30} height={30} className="shrink-0" />
+                ) : (
+                  <span className="text-gray-400 w-8 text-center">–</span>
+                )}
+                <span className="text-base font-extrabold font-mono truncate">
+                  {team?.label || "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
   const formatGameDate = (iso) =>
     new Date(iso)
       .toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "America/New_York" })
@@ -714,7 +782,12 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
           Only the horizontal axis is its own scroll container here now; the
           frozen User/Wins columns (sticky left-*) are unaffected — that part
           was already fine and is left exactly as-is. */}
-      <div className="hidden sm:block max-w-8xl mx-auto mb-28 overflow-x-auto">
+      {/* This "wide table" is now desktop-only (2xl = 1536px+). It used to
+          switch in at sm (640px), which caught every iPad in both
+          orientations — including a 12.9" iPad Pro landscape (1366px) — and
+          showed the dense many-column table instead of the compact card
+          list it was actually designed for. */}
+      <div className="hidden 2xl:block max-w-8xl mx-auto mb-28 overflow-x-auto">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
@@ -823,7 +896,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       </div>
 
       {/* Expandable per-user view (portrait / narrow screens) */}
-      <div className="sm:hidden max-w-8xl mx-auto pb-28">
+      <div className="2xl:hidden max-w-8xl mx-auto pb-28">
         <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
@@ -845,7 +918,6 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
             )}
             {submissions.map((entry, index) => {
               const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
-              const picksMap = entry.picksMap;
               const isOpen = expandedUsers.has(entry.uid);
 
               return (
@@ -875,70 +947,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                   {isOpen && (
                     <tr className={rowBg}>
                       <td colSpan={3} className={`${borderClass} p-2`}>
-                        {(() => {
-                          const p2f = getPathToFirst(entry.uid);
-                          if (!p2f) return null;
-                          const boxClass =
-                            p2f.kind === "guardrail"
-                              ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
-                              : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100";
-                          return (
-                            <div className={`mb-2 rounded-md px-2 py-1.5 text-xs ${boxClass}`}>
-                              <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
-                              {p2f.text}
-                            </div>
-                          );
-                        })()}
-
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {uniqueEventIDs.map((eventID) => {
-                            const g = eventMap[eventID];
-                            const pickTeam = picksMap.get(eventID);
-                            const correct = winners[eventID] === pickTeam;
-                            const pickedHome = g?.home?.abbr === pickTeam || g?.home?.short === pickTeam;
-                            const team = pickedHome
-                              ? { logo: g?.home?.logo, label: g?.home?.abbr }
-                              : { logo: g?.away?.logo, label: g?.away?.abbr };
-                            const isPending = g?.status !== "post";
-                            const isLive = g?.status === "in";
-                            // Solid, high-contrast fills (not a pale tint) so the
-                            // result reads at a glance for anyone with lower
-                            // vision — same colors in light and dark mode.
-                            const bgColor = isPending
-                              ? "bg-slate-200 dark:bg-zinc-700 text-slate-900 dark:text-white"
-                              : isGameTied(g)
-                              ? "bg-sky-300 text-slate-900"
-                              : correct
-                              ? "bg-emerald-300 text-slate-900"
-                              : "bg-rose-300 text-slate-900";
-                            // Live games get a blue ring so they stand out while
-                            // still in progress, distinct from the pending gray fill.
-                            const liveRing = isLive ? "ring-2 ring-blue-500" : "";
-
-                            // Just the picked team's logo/name, no score — the
-                            // color fill already says correct/incorrect/tied;
-                            // tap the box for the actual final score.
-                            return (
-                              <div
-                                key={eventID}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedGameID(eventID);
-                                }}
-                                className={`flex items-center justify-center gap-2 rounded-lg px-2 py-2 min-h-[44px] cursor-pointer active:opacity-80 ${bgColor} ${liveRing}`}
-                              >
-                                {pickTeam && team?.logo ? (
-                                  <Image src={team.logo} alt={team?.label || "Team"} width={30} height={30} className="shrink-0" />
-                                ) : (
-                                  <span className="text-gray-400 w-8 text-center">–</span>
-                                )}
-                                <span className="text-base font-extrabold font-mono truncate">
-                                  {team?.label || "—"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {renderUserBreakdown(entry)}
                       </td>
                     </tr>
                   )}
@@ -949,7 +958,9 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         </table>
       </div>
 
-      {/* Portrait-only: all picks for one game, opened by tapping a game box */}
+      {/* All picks for one game, opened by tapping a game box inside either
+          the compact card list or the desktop "everyone's picks" modal below —
+          no longer sm:hidden, since it's reachable from both now. */}
       {selectedGameID && (() => {
         const g = eventMap[selectedGameID];
         if (!g) return null;
@@ -961,7 +972,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
 
         return (
           <div
-            className="sm:hidden fixed inset-0 z-[60] flex items-end bg-black/50"
+            className="fixed inset-0 z-[60] flex items-end bg-black/50"
             onClick={() => setSelectedGameID(null)}
           >
             <div
@@ -1034,11 +1045,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         );
       })()}
 
-      {/* Landscape: Path to 1st modal, opened by clicking a user's name */}
+      {/* Desktop table: clicking a user's name shows the same game-by-game
+          breakdown as the compact card list's inline expand, in a modal
+          instead (a row in this table doesn't have room to expand in
+          place). Used to only show the Path to 1st text — now consistent
+          with the compact view everywhere. */}
       {pathToFirstUid && (() => {
         const entry = submissions.find((s) => s.uid === pathToFirstUid);
         if (!entry) return null;
-        const p2f = getPathToFirst(pathToFirstUid);
 
         return (
           <div
@@ -1046,7 +1060,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
             onClick={() => setPathToFirstUid(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-5"
+              className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-3">
@@ -1059,22 +1073,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
                 </button>
               </div>
 
-              {p2f ? (
-                <div
-                  className={`rounded-md px-3 py-2 text-sm ${
-                    p2f.kind === "guardrail"
-                      ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
-                      : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100"
-                  }`}
-                >
-                  <span className="font-bold uppercase tracking-wide">Path to 1st: </span>
-                  {p2f.text}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Nothing to show — this week is fully decided.
-                </p>
-              )}
+              {renderUserBreakdown(entry)}
             </div>
           </div>
         );
