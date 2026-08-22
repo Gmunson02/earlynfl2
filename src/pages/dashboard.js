@@ -246,8 +246,8 @@ export default function Dashboard() {
                 </p>
               </>
             ) : (
-              <p className="text-sm sm:text-base font-bold text-rose-600 dark:text-rose-400">
-                🔒 First game has kicked off — all picks are locked for the week.
+              <p className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">
+                🔒 All Picks Locked 🔒
               </p>
             )}
           </div>
