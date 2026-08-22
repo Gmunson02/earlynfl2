@@ -971,12 +971,18 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         const isTiebreakerGame = selectedGameID === uniqueEventIDs[uniqueEventIDs.length - 1];
 
         return (
+          // Can be opened from inside the user-breakdown modal below (tap a
+          // game there), so it needs to sit strictly above it — z-[70] vs
+          // that modal's z-[60] — otherwise two stacked semi-transparent
+          // backdrops just show the lower one dimmed through the top one
+          // rather than fully covering it. Centered instead of a bottom
+          // sheet now that it isn't mobile-only.
           <div
-            className="fixed inset-0 z-[60] flex items-end bg-black/50"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
             onClick={() => setSelectedGameID(null)}
           >
             <div
-              className="w-full max-h-[75vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 text-gray-900 dark:text-white p-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-3">
