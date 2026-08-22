@@ -782,12 +782,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
           Only the horizontal axis is its own scroll container here now; the
           frozen User/Wins columns (sticky left-*) are unaffected — that part
           was already fine and is left exactly as-is. */}
-      {/* This "wide table" is now desktop-only (2xl = 1536px+). It used to
-          switch in at sm (640px), which caught every iPad in both
-          orientations — including a 12.9" iPad Pro landscape (1366px) — and
-          showed the dense many-column table instead of the compact card
-          list it was actually designed for. */}
-      <div className="hidden 2xl:block max-w-8xl mx-auto mb-28 overflow-x-auto">
+      {/* Which view shows is based on actual device orientation now, not a
+          width breakpoint. A width cutoff conflated "wide viewport" with
+          "desktop" — a phone or iPad rotated to landscape has plenty of
+          width and should still get this table, which a fixed px cutoff
+          (previously sm, then overcorrected to 2xl) can't express either
+          direction: sm caught portrait iPads that wanted the compact list,
+          2xl excluded landscape phones that wanted this table. */}
+      <div className="hidden landscape:block max-w-8xl mx-auto mb-28 overflow-x-auto">
         {/* min-w-max => table grows to fit columns; wrapper scrolls on small screens */}
         <table className={`min-w-max w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
@@ -896,7 +898,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       </div>
 
       {/* Expandable per-user view (portrait / narrow screens) */}
-      <div className="2xl:hidden max-w-8xl mx-auto pb-28">
+      <div className="landscape:hidden max-w-8xl mx-auto pb-28">
         <table className={`w-full text-base border-separate border-spacing-0 ${borderClass}`}>
           <thead className="bg-slate-800 text-white shadow-sm">
             <tr>
