@@ -247,7 +247,7 @@ export default function Dashboard() {
               </>
             ) : (
               <p className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">
-                🔒 All Picks Locked 🔒
+                🔒 Picks Locked 🔒
               </p>
             )}
           </div>
