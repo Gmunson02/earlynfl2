@@ -47,23 +47,29 @@ function buildWinners(standings, lastGameTotal) {
   const maxWins = Math.max(...standings.map(s => s.wins));
   const top = standings.filter(s => s.wins === maxWins);
 
-  // Price Is Right: closest without going over to lastGameTotal
+  // Closest guess that's >= the actual combined score wins — your guess has
+  // to "cover" the real number, and among those that do, the smallest one
+  // wins. If everyone undershoots, the highest guess wins (smallest
+  // shortfall). Confirmed against the league's actual understanding of the
+  // rule: guesses of 33/35/45 split into winning bands 0-33 / 34-35 / 36-45
+  // (and unbounded above 45, since nobody guessed higher) — verified
+  // against every integer score 0-50 before shipping this.
   const withTb = top.map(s => {
     const tb = Number(s.tieBreaker ?? NaN);
-    const diff = lastGameTotal - tb;
-    return { ...s, tbDiff: Math.abs(diff), tbOver: diff < 0 };
+    const diff = tb - lastGameTotal;
+    return { ...s, tbDiff: Math.abs(diff), tbUnder: diff < 0 };
   });
 
-  const nonOver = withTb.filter(s => !s.tbOver);
-  if (nonOver.length) {
-    const minDiff = Math.min(...nonOver.map(s => s.tbDiff));
-    const winners = nonOver.filter(s => s.tbDiff === minDiff);
+  const covering = withTb.filter(s => !s.tbUnder); // tb >= lastGameTotal
+  if (covering.length) {
+    const minDiff = Math.min(...covering.map(s => s.tbDiff));
+    const winners = covering.filter(s => s.tbDiff === minDiff);
     return { winners, enriched: withTb };
   }
 
-  // Everyone went over → smallest overage wins
-  const minOver = Math.min(...withTb.map(s => s.tbDiff));
-  const winners = withTb.filter(s => s.tbDiff === minOver);
+  // Everyone undershot → smallest shortfall (i.e. the highest guess) wins
+  const minUnder = Math.min(...withTb.map(s => s.tbDiff));
+  const winners = withTb.filter(s => s.tbDiff === minUnder);
   return { winners, enriched: withTb };
 }
 
@@ -142,7 +148,7 @@ async function computeWeek(year, season, week) {
       wins: s.wins,
       tieBreaker: s.tieBreaker ?? null,
       tbDiff: s.tbDiff ?? null,
-      tbOver: !!s.tbOver,
+      tbUnder: !!s.tbUnder,
     })),
     winners: winnersOut, // <-- now includes display names
   };
