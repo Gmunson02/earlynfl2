@@ -525,7 +525,6 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         necessary,
         needsTiebreaker,
         flexibleOptions,
-        fullyDetermined: flexibleIdx.length === 0 && !needsTiebreaker,
       };
     },
     [
@@ -605,15 +604,21 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         ? `at least one of: ${scenario.flexibleOptions.map((opt) => `(${opt.split(" & ").join(" and ")})`).join(" or ")}`
         : "";
 
+    // Branch strictly on whether there's actually flexible-option text to
+    // append — "fullyDetermined" used to gate this instead, but it's false
+    // whenever needsTiebreaker is true regardless of whether orText is
+    // empty, which produced "you must win the tiebreaker — plus ." with
+    // nothing after "plus" whenever the tiebreaker was the only remaining
+    // condition and no either/or games were left.
     let text;
     if (clauses.length === 0 && !orText) {
       text = "Path depends on how the remaining games go — several combinations could work in your favor.";
-    } else if (scenario.fullyDetermined) {
-      text = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
-    } else if (clauses.length === 0) {
-      text = `Needs: ${orText} to finish 1st.`;
-    } else {
+    } else if (clauses.length > 0 && orText) {
       text = `Needs: ${joinWithAnd(clauses)} — plus ${orText}.`;
+    } else if (clauses.length > 0) {
+      text = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
+    } else {
+      text = `Needs: ${orText} to finish 1st.`;
     }
 
     return { kind: "verdict", text };
