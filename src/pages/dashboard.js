@@ -113,18 +113,30 @@ function useLastWeekWinner({ weeklyResults, value, seasonYear, seasonType, nameM
 
 // ---- UI bits -----------------------------------------------
 
-// Dark mode only: each action gets its own signature accent color for its
-// icon badge, matching the "every metric gets its own color" convention.
-// Light mode is untouched — no accentClass means no dark:bg-*/dark:text-*
-// classes apply at all, and the badge circle itself is only visible in dark
-// mode (bg-transparent in light).
+// One color identity per action, shared between light and dark — light gets
+// a tinted badge (pastel bg, saturated text) that reads well on white; dark
+// gets the neon-on-black treatment. Keyed by name so call sites don't repeat
+// long class strings, and so the light/dark pairing for a given action can't
+// drift apart from each other.
+const ACCENT_COLORS = {
+  sky: { light: "bg-sky-100 text-sky-600", dark: "dark:bg-sky-500/20 dark:text-sky-400" },
+  emerald: { light: "bg-emerald-100 text-emerald-600", dark: "dark:bg-lime-500/20 dark:text-lime-400" },
+  violet: { light: "bg-violet-100 text-violet-600", dark: "dark:bg-violet-500/20 dark:text-violet-400" },
+  rose: { light: "bg-rose-100 text-rose-600", dark: "dark:bg-rose-500/20 dark:text-rose-400" },
+  amber: { light: "bg-amber-100 text-amber-600", dark: "dark:bg-yellow-500/20 dark:text-yellow-300" },
+  orange: { light: "bg-orange-100 text-orange-600", dark: "dark:bg-orange-500/20 dark:text-orange-400" },
+  indigo: { light: "bg-indigo-100 text-indigo-600", dark: "dark:bg-indigo-500/20 dark:text-indigo-400" },
+  zinc: { light: "bg-zinc-100 text-zinc-500", dark: "dark:bg-zinc-500/20 dark:text-zinc-300" },
+};
+
 const ActionButton = React.memo(function ActionButton({
   onClick,
   icon: Icon,
   label,
   disabled = false,
-  accent = "dark:bg-zinc-500/20 dark:text-zinc-300",
+  color = "zinc",
 }) {
+  const accent = ACCENT_COLORS[color] || ACCENT_COLORS.zinc;
   return (
     <motion.button
       whileHover={!disabled ? { scale: 1.05 } : {}}
@@ -138,8 +150,8 @@ const ActionButton = React.memo(function ActionButton({
       }`}
     >
       <span
-        className={`flex items-center justify-center w-9 h-9 rounded-full bg-transparent ${
-          disabled ? "" : accent
+        className={`flex items-center justify-center w-9 h-9 rounded-full ${
+          disabled ? "bg-zinc-200 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-600" : `${accent.light} ${accent.dark}`
         }`}
       >
         <Icon size={20} />
@@ -227,10 +239,12 @@ export default function Dashboard() {
             hasLastWeekWinner ? "md:grid-cols-3" : "md:grid-cols-2"
           }`}
         >
-          {/* Current week */}
-          <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
+          {/* Current week — light mode gets a tinted card (sky) instead of
+              plain white, so each stat has its own color identity in both
+              themes, not just dark. */}
+          <div className="bg-sky-50 dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-sky-200 dark:border-transparent shadow-sm dark:shadow-none text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">Current Week</h2>
-            <p className="text-base sm:text-xl font-bold dark:font-black text-indigo-600 dark:text-sky-400">
+            <p className="text-base sm:text-xl font-extrabold dark:font-black text-sky-600 dark:text-sky-400">
               {/* Never fall back to `Week ${value}` — that's ESPN's week
                   number, not our label (Preseason Week 2 is ESPN week 3). */}
               {loading ? "…" : displayLabel || "—"}
@@ -241,16 +255,23 @@ export default function Dashboard() {
               isBeforeKickoff goes false and countdown itself just reads
               "—" (see useScheduleWeek), which doesn't tell you WHY there's
               no countdown. Swap the whole card to an explicit locked
-              message instead of a blank dash. */}
-          <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
+              message instead of a blank dash. Card tint follows the same
+              state: amber while counting, rose once locked. */}
+          <div
+            className={`p-3 sm:p-4 rounded-xl dark:rounded-2xl border shadow-sm dark:shadow-none text-center dark:bg-zinc-900 dark:border-transparent ${
+              !loading && !isBeforeKickoff
+                ? "bg-rose-50 border-rose-200"
+                : "bg-amber-50 border-amber-200"
+            }`}
+          >
             <h2 className="text-sm sm:text-base font-semibold mb-1">
               {loading || isBeforeKickoff ? "Countdown to Kickoff" : "Picks Locked"}
             </h2>
             {loading ? (
-              <p className="text-base sm:text-xl font-bold dark:font-black text-amber-600 dark:text-yellow-300">…</p>
+              <p className="text-base sm:text-xl font-extrabold dark:font-black text-amber-600 dark:text-yellow-300">…</p>
             ) : isBeforeKickoff ? (
               <>
-                <p className="text-base sm:text-xl font-bold dark:font-black text-amber-600 dark:text-yellow-300">
+                <p className="text-base sm:text-xl font-extrabold dark:font-black text-amber-600 dark:text-yellow-300">
                   {countdown}
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -258,7 +279,7 @@ export default function Dashboard() {
                 </p>
               </>
             ) : (
-              <p className="text-base sm:text-xl font-bold dark:font-black text-rose-600 dark:text-rose-400">
+              <p className="text-base sm:text-xl font-extrabold dark:font-black text-rose-600 dark:text-rose-400">
                 🔒 Picks Locked 🔒
               </p>
             )}
@@ -268,7 +289,7 @@ export default function Dashboard() {
               of the season has been computed — deliberately no last-season
               fallback. */}
           {hasLastWeekWinner ? (
-            <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
+            <div className="bg-emerald-50 dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-emerald-200 dark:border-transparent shadow-sm dark:shadow-none text-center">
               <h2 className="text-sm sm:text-base font-semibold mb-2">
                 Last Week&apos;s Winner{lastWeek.winners.length > 1 ? "s" : ""}
               </h2>
@@ -276,7 +297,7 @@ export default function Dashboard() {
               <div className="space-y-1">
                 {lastWeek.winners.map((w, i) => (
                   <div key={`${w.displayName}-${i}`}>
-                    <p className="text-base sm:text-xl font-bold dark:font-black text-green-600 dark:text-lime-400 mb-1">
+                    <p className="text-base sm:text-xl font-extrabold dark:font-black text-emerald-600 dark:text-lime-400 mb-1">
                       {w.displayName}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -301,7 +322,7 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "picks"))}
             icon={ClipboardList}
             label="Manage Your Picks"
-            accent="dark:bg-sky-500/20 dark:text-sky-400"
+            color="sky"
             disabled={
               !seasonYear ||
               !seasonType ||
@@ -313,34 +334,34 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsThis, "results"))}
             icon={Calendar}
             label="This Week’s Results"
-            accent="dark:bg-lime-500/20 dark:text-lime-400"
+            color="emerald"
             disabled={!seasonYear || !seasonType || !routeWeekResultsThis}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "rivals"))}
             icon={ArrowLeftRight}
             label="Compare"
-            accent="dark:bg-violet-500/20 dark:text-violet-400"
+            color="violet"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
             icon={PlayCircle}
             label="Game Center"
-            accent="dark:bg-rose-500/20 dark:text-rose-400"
+            color="rose"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
             icon={Clock}
             label="Last Week’s Results"
-            accent="dark:bg-yellow-500/20 dark:text-yellow-300"
+            color="amber"
           />
           <ActionButton
             onClick={() => router.push("/leaderboard")}
             icon={TrendingUp}
             label="Leaderboard"
-            accent="dark:bg-orange-500/20 dark:text-orange-400"
+            color="orange"
           />
           <ActionButton
             onClick={() => router.push("/profile")}
@@ -352,7 +373,7 @@ export default function Dashboard() {
               onClick={() => router.push("/admin")}
               icon={ShieldCheck}
               label="Admin"
-              accent="dark:bg-indigo-500/20 dark:text-indigo-400"
+              color="indigo"
             />
           )}
         </motion.section>
