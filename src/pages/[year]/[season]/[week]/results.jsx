@@ -614,12 +614,17 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
     if (clauses.length === 0 && !orText) {
       text = "Path depends on how the remaining games go — several combinations could work in your favor.";
     } else if (clauses.length > 0 && orText) {
-      text = `Needs: ${joinWithAnd(clauses)} — plus ${orText}.`;
+      text = `${joinWithAnd(clauses)} — plus ${orText}.`;
     } else if (clauses.length > 0) {
-      text = `Needs: ${joinWithAnd(clauses)} to finish 1st.`;
+      text = `${joinWithAnd(clauses)} to finish 1st.`;
     } else {
-      text = `Needs: ${orText} to finish 1st.`;
+      text = `${orText} to finish 1st.`;
     }
+    // No "Needs:" prefix anymore — the "Path to 1st" label already says
+    // what this is. But clauses/orText both start lowercase ("you must
+    // win…", "at least one of…"), so capitalize the sentence itself now
+    // that nothing precedes it.
+    text = text.charAt(0).toUpperCase() + text.slice(1);
 
     return { kind: "verdict", text };
   };
