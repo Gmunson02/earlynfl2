@@ -395,6 +395,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       // apart from "this game could go either way and it genuinely matters."
       const isWin = new Array(totalCombos);
       const requiresTB = new Array(totalCombos);
+      const tiedGroups = new Array(totalCombos);
 
       for (let mask = 0; mask < totalCombos; mask++) {
         const assignment = {};
@@ -423,18 +424,22 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         if (tied.length === 1) {
           winnerUids = tied;
         } else if (tiebreakerDecided) {
-          // Score is known — resolve the tie for real, no future dependency
-          let minDiff = Infinity;
-          for (const uid of tied) {
+          // Score is known — resolve the tie for real, no future dependency.
+          // Closest guess that's >= the actual score wins (has to "cover"
+          // it); if everyone undershoots, the highest guess wins (smallest
+          // shortfall). Same rule as the backend's buildWinners in
+          // functions/index.js — this used to be plain closest-absolute-
+          // difference, which is a different (wrong) rule entirely.
+          const withDiff = tied.map((uid) => {
             const guess = tiebreakerGuessByUid.get(uid);
-            const diff = Number.isFinite(guess) ? Math.abs(guess - actualTiebreakerScore) : Infinity;
-            if (diff < minDiff) minDiff = diff;
-          }
-          winnerUids = tied.filter((uid) => {
-            const guess = tiebreakerGuessByUid.get(uid);
-            const diff = Number.isFinite(guess) ? Math.abs(guess - actualTiebreakerScore) : Infinity;
-            return diff === minDiff;
+            if (!Number.isFinite(guess)) return { uid, absDiff: Infinity, under: true };
+            const diff = guess - actualTiebreakerScore;
+            return { uid, absDiff: Math.abs(diff), under: diff < 0 };
           });
+          const covering = withDiff.filter((x) => !x.under);
+          const pool = covering.length ? covering : withDiff;
+          const minAbs = Math.min(...pool.map((x) => x.absDiff));
+          winnerUids = pool.filter((x) => x.absDiff === minAbs).map((x) => x.uid);
         } else {
           // Tiebreaker game hasn't happened yet — anyone tied is still alive
           winnerUids = tied;
@@ -443,6 +448,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
 
         isWin[mask] = winnerUids.includes(targetUid);
         requiresTB[mask] = needsTB;
+        tiedGroups[mask] = tied;
       }
 
       const winningMasks = [];
@@ -499,6 +505,13 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       }
 
       const needsTiebreaker = winningMasks.every((m) => requiresTB[m]);
+      // Who targetUid would be tied with in the tiebreaker, for the specific
+      // scores-range messaging below. The guesses being compared are fixed
+      // regardless of how the remaining games go, so any winning+needsTB
+      // mask's tied group is a representative sample of who that is.
+      const tiebreakGroup = needsTiebreaker
+        ? tiedGroups[winningMasks.find((m) => requiresTB[m])]
+        : null;
 
       // Spell out the actual valid combinations for whatever's left flexible,
       // restricted to just those games (necessary/irrelevant ones excluded)
@@ -525,6 +538,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
         necessary,
         needsTiebreaker,
         flexibleOptions,
+        tiebreakGroup,
       };
     },
     [
@@ -574,6 +588,34 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
   const joinWithAnd = (arr) =>
     arr.length <= 1 ? arr.join("") : `${arr.slice(0, -1).join(", ")}${arr.length > 2 ? "," : ""} and ${arr[arr.length - 1]}`;
 
+  // The actual winning combined-score range for one person in a tiebreaker
+  // group — not just "you must win the tiebreaker" but the specific numbers.
+  // Same rule as buildScenario's tie resolution and the backend's
+  // buildWinners: closest guess >= the actual score wins, so each person's
+  // band runs from just above the next-lower guess up to (and including)
+  // their own — except whoever has the single highest guess, whose band has
+  // no upper limit, since nobody's guess covers a higher score than theirs.
+  const describeTiebreakBand = (tiedUids, targetUid) => {
+    const entries = tiedUids
+      .map((uid) => ({ uid, guess: tiebreakerGuessByUid.get(uid) }))
+      .filter((e) => Number.isFinite(e.guess))
+      .sort((a, b) => a.guess - b.guess);
+
+    const idx = entries.findIndex((e) => e.uid === targetUid);
+    if (idx === -1) return null; // target has no valid guess to anchor a band to
+
+    const own = entries[idx].guess;
+    const isTop = idx === entries.length - 1;
+    const lower = idx === 0 ? null : entries[idx - 1].guess + 1;
+
+    if (isTop && lower == null) return `the tiebreaker score`; // sole tiebreaker guess — always covers
+    if (isTop) return `${lower} or higher`;
+    if (lower == null) return `${own} or lower`;
+    if (lower === own) return `${own}`;
+    if (lower === own - 1) return `${lower} or ${own}`;
+    return `${lower}–${own}`;
+  };
+
   // Shared by both the portrait inline callout and the landscape click-through
   // modal. Returns null when there's nothing to show (week fully decided).
   const getPathToFirst = (uid) => {
@@ -597,7 +639,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
     const teamAbbrs = scenario.necessary.map((n) => n.needAbbr);
     const clauses = [];
     if (teamAbbrs.length > 0) clauses.push(`${joinWithAnd(teamAbbrs)} must win`);
-    if (scenario.needsTiebreaker) clauses.push("you must win the tiebreaker");
+    if (scenario.needsTiebreaker) {
+      const band = scenario.tiebreakGroup && describeTiebreakBand(scenario.tiebreakGroup, uid);
+      clauses.push(
+        band
+          ? `the combined score must be ${band}`
+          : "you must win the tiebreaker" // fallback if the band couldn't be computed (e.g. no valid guess)
+      );
+    }
 
     const orText =
       scenario.flexibleOptions.length > 0
