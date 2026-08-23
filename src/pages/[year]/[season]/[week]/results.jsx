@@ -641,9 +641,13 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
     if (teamAbbrs.length > 0) clauses.push(`${joinWithAnd(teamAbbrs)} must win`);
     if (scenario.needsTiebreaker) {
       const band = scenario.tiebreakGroup && describeTiebreakBand(scenario.tiebreakGroup, uid);
+      const tbMatchup =
+        tiebreakerGame?.away?.abbr && tiebreakerGame?.home?.abbr
+          ? ` in the tiebreaker game (${tiebreakerGame.away.abbr} @ ${tiebreakerGame.home.abbr})`
+          : "";
       clauses.push(
         band
-          ? `the combined score must be ${band}`
+          ? `your combined score must be ${band}${tbMatchup}`
           : "you must win the tiebreaker" // fallback if the band couldn't be computed (e.g. no valid guess)
       );
     }
