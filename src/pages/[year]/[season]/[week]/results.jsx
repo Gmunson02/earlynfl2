@@ -694,7 +694,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
       <>
         {p2f && (
           <div
-            className={`mb-2 rounded-md px-2 py-1.5 text-xs ${
+            className={`mb-2 rounded-md px-3 py-2 text-sm sm:text-base leading-snug ${
               p2f.kind === "guardrail"
                 ? "bg-slate-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400"
                 : "bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-100"
