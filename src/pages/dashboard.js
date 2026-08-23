@@ -113,11 +113,17 @@ function useLastWeekWinner({ weeklyResults, value, seasonYear, seasonType, nameM
 
 // ---- UI bits -----------------------------------------------
 
+// Dark mode only: each action gets its own signature accent color for its
+// icon badge, matching the "every metric gets its own color" convention.
+// Light mode is untouched — no accentClass means no dark:bg-*/dark:text-*
+// classes apply at all, and the badge circle itself is only visible in dark
+// mode (bg-transparent in light).
 const ActionButton = React.memo(function ActionButton({
   onClick,
   icon: Icon,
   label,
   disabled = false,
+  accent = "dark:bg-zinc-500/20 dark:text-zinc-300",
 }) {
   return (
     <motion.button
@@ -125,13 +131,19 @@ const ActionButton = React.memo(function ActionButton({
       whileTap={!disabled ? { scale: 0.97 } : {}}
       onClick={onClick}
       disabled={disabled}
-      className={`p-4 rounded-xl flex items-center gap-3 justify-start w-full text-left transition-all border border-zinc-200 dark:border-zinc-700 shadow-md backdrop-blur-md ${
+      className={`p-4 rounded-xl flex items-center gap-3 justify-start w-full text-left transition-all border border-zinc-200 dark:border-transparent shadow-md backdrop-blur-md ${
         disabled
-          ? "bg-zinc-300 text-zinc-500 cursor-not-allowed dark:bg-zinc-600 dark:text-zinc-400"
-          : "bg-white hover:bg-zinc-100 text-zinc-800 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white"
+          ? "bg-zinc-300 text-zinc-500 cursor-not-allowed dark:bg-zinc-900 dark:text-zinc-600"
+          : "bg-white hover:bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-white"
       }`}
     >
-      <Icon size={20} />
+      <span
+        className={`flex items-center justify-center w-9 h-9 rounded-full bg-transparent ${
+          disabled ? "" : accent
+        }`}
+      >
+        <Icon size={20} />
+      </span>
       <span className="font-semibold">{label}</span>
     </motion.button>
   );
@@ -195,7 +207,7 @@ export default function Dashboard() {
     prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1");
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-gradient-to-tr dark:from-gray-950 dark:to-gray-900 text-zinc-900 dark:text-white px-6 py-4 pb-32">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white px-6 py-4 pb-32">
       <Head>
         <title>Dashboard | Early NFL</title>
       </Head>
@@ -216,9 +228,9 @@ export default function Dashboard() {
           }`}
         >
           {/* Current week */}
-          <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+          <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">Current Week</h2>
-            <p className="text-base sm:text-xl font-bold text-indigo-600 dark:text-indigo-400">
+            <p className="text-base sm:text-xl font-bold dark:font-black text-indigo-600 dark:text-sky-400">
               {/* Never fall back to `Week ${value}` — that's ESPN's week
                   number, not our label (Preseason Week 2 is ESPN week 3). */}
               {loading ? "…" : displayLabel || "—"}
@@ -230,15 +242,15 @@ export default function Dashboard() {
               "—" (see useScheduleWeek), which doesn't tell you WHY there's
               no countdown. Swap the whole card to an explicit locked
               message instead of a blank dash. */}
-          <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+          <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
             <h2 className="text-sm sm:text-base font-semibold mb-1">
               {loading || isBeforeKickoff ? "Countdown to Kickoff" : "Picks Locked"}
             </h2>
             {loading ? (
-              <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">…</p>
+              <p className="text-base sm:text-xl font-bold dark:font-black text-amber-600 dark:text-yellow-300">…</p>
             ) : isBeforeKickoff ? (
               <>
-                <p className="text-base sm:text-xl font-bold text-amber-600 dark:text-yellow-400">
+                <p className="text-base sm:text-xl font-bold dark:font-black text-amber-600 dark:text-yellow-300">
                   {countdown}
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -246,7 +258,7 @@ export default function Dashboard() {
                 </p>
               </>
             ) : (
-              <p className="text-base sm:text-xl font-bold text-rose-600 dark:text-rose-400">
+              <p className="text-base sm:text-xl font-bold dark:font-black text-rose-600 dark:text-rose-400">
                 🔒 Picks Locked 🔒
               </p>
             )}
@@ -256,7 +268,7 @@ export default function Dashboard() {
               of the season has been computed — deliberately no last-season
               fallback. */}
           {hasLastWeekWinner ? (
-            <div className="bg-white dark:bg-zinc-800/80 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow text-center">
+            <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-xl dark:rounded-2xl border border-zinc-200 dark:border-transparent shadow dark:shadow-none text-center">
               <h2 className="text-sm sm:text-base font-semibold mb-2">
                 Last Week&apos;s Winner{lastWeek.winners.length > 1 ? "s" : ""}
               </h2>
@@ -264,7 +276,7 @@ export default function Dashboard() {
               <div className="space-y-1">
                 {lastWeek.winners.map((w, i) => (
                   <div key={`${w.displayName}-${i}`}>
-                    <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mb-1">
+                    <p className="text-base sm:text-xl font-bold dark:font-black text-green-600 dark:text-lime-400 mb-1">
                       {w.displayName}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -289,6 +301,7 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "picks"))}
             icon={ClipboardList}
             label="Manage Your Picks"
+            accent="dark:bg-sky-500/20 dark:text-sky-400"
             disabled={
               !seasonYear ||
               !seasonType ||
@@ -300,29 +313,34 @@ export default function Dashboard() {
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsThis, "results"))}
             icon={Calendar}
             label="This Week’s Results"
+            accent="dark:bg-lime-500/20 dark:text-lime-400"
             disabled={!seasonYear || !seasonType || !routeWeekResultsThis}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "rivals"))}
             icon={ArrowLeftRight}
             label="Compare"
+            accent="dark:bg-violet-500/20 dark:text-violet-400"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekPicks, "gamecenter"))}
             icon={PlayCircle}
             label="Game Center"
+            accent="dark:bg-rose-500/20 dark:text-rose-400"
             disabled={!seasonYear || !seasonType || !routeWeekPicks}
           />
           <ActionButton
             onClick={go(linkFor(safeYear, seasonType, routeWeekResultsPrev, "results"))}
             icon={Clock}
             label="Last Week’s Results"
+            accent="dark:bg-yellow-500/20 dark:text-yellow-300"
           />
           <ActionButton
             onClick={() => router.push("/leaderboard")}
             icon={TrendingUp}
             label="Leaderboard"
+            accent="dark:bg-orange-500/20 dark:text-orange-400"
           />
           <ActionButton
             onClick={() => router.push("/profile")}
@@ -334,6 +352,7 @@ export default function Dashboard() {
               onClick={() => router.push("/admin")}
               icon={ShieldCheck}
               label="Admin"
+              accent="dark:bg-indigo-500/20 dark:text-indigo-400"
             />
           )}
         </motion.section>
