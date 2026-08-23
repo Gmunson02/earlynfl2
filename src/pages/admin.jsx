@@ -104,7 +104,7 @@ function buildWeeklyRecapText(participants, remainingGame) {
       const nameStr =
         g.names.length > 1 ? `${g.names.slice(0, -1).join(", ")} and ${g.names[g.names.length - 1]}` : g.names[0];
       const verb = g.names.length > 1 ? "have" : "has";
-      const verb2 = g.names.length > 1 ? "all picked" : "picked";
+      const verb2 = g.names.length === 2 ? "both picked" : g.names.length > 2 ? "all picked" : "picked";
       return `${nameStr} ${verb} ${g.wins} wins and ${verb2} the ${teamNameFor(g.pick)}.`;
     });
 
