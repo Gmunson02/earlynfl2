@@ -19,7 +19,7 @@ import {
 import { httpsCallable } from "firebase/functions";
 import useIsAdmin from "../hooks/useIsAdmin";
 import RenameModal from "../components/RenameModal";
-import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users, Home, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, Unlock, Pencil, UserPen, X, ChevronDown, ChevronRight, UserPlus, Mail, MessageSquare, Users, Home, Trash2, Megaphone, Copy, Check } from "lucide-react";
 
 const SEASON_ID = "nfl-2026";
 const SITE_URL = "https://www.earlynfl.com";
@@ -30,6 +30,116 @@ const SYSTEM_FIELDS = ["tieBreaker", "displayName", "locked", "submittedAt", "la
 
 function tsToDate(x) {
   return x?.toDate ? x.toDate() : null;
+}
+
+// ---- Weekly recap generation ----
+// Only meaningful with exactly one game left this week (the caller enforces
+// that). Groups every tiebreaker guess by its exact value first — two people
+// can genuinely submit the same number — so a shared value produces one
+// combined band/tie line instead of being silently merged into someone
+// else's or dropped.
+function groupByGuess(people) {
+  const byGuess = new Map();
+  for (const p of people) {
+    if (!Number.isFinite(p.guess)) continue; // no valid guess -> excluded, flagged separately
+    if (!byGuess.has(p.guess)) byGuess.set(p.guess, []);
+    byGuess.get(p.guess).push(p.name);
+  }
+  return [...byGuess.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([guess, names]) => ({ guess, names }));
+}
+
+// Same rule as buildScenario/buildWinners: closest guess >= the actual score
+// wins, so each guess-group's band runs from just above the previous
+// distinct guess up through its own value; the highest guess-group's band
+// has no upper limit.
+function buildBandLines(group) {
+  return group.map((g, i) => {
+    const isTop = i === group.length - 1;
+    const lower = i === 0 ? 0 : group[i - 1].guess + 1;
+    const nameStr =
+      g.names.length > 1
+        ? `${g.names.slice(0, -1).join(", ")} and ${g.names[g.names.length - 1]}`
+        : g.names[0];
+    const verb = g.names.length > 1 ? "have" : "has";
+
+    if (isTop) return `${nameStr} ${verb} ${lower} and above`;
+    if (lower === g.guess) return g.names.length > 1 ? `${nameStr} tie at ${g.guess}` : `${nameStr} has ${g.guess}`;
+    return `${nameStr} ${verb} ${lower} to ${g.guess}`;
+  });
+}
+
+// participants: [{ name, currentWins, pick, guess }] — pick is the team
+// abbr they picked for the one remaining game.
+// remainingGame: { homeAbbr, awayAbbr, homeName, awayName }
+function buildWeeklyRecapText(participants, remainingGame) {
+  const branchTied = (winningAbbr) => {
+    const withNewWins = participants.map((p) => ({
+      ...p,
+      newWins: p.currentWins + (p.pick === winningAbbr ? 1 : 0),
+    }));
+    const maxWins = Math.max(...withNewWins.map((p) => p.newWins));
+    return withNewWins.filter((p) => p.newWins === maxWins);
+  };
+
+  const homeBranch = branchTied(remainingGame.homeAbbr);
+  const awayBranch = branchTied(remainingGame.awayAbbr);
+
+  const contenderNames = new Set([...homeBranch, ...awayBranch].map((p) => p.name));
+  if (contenderNames.size === 0) return "No one is mathematically alive for 1st this week.";
+  const contenders = participants.filter((p) => contenderNames.has(p.name));
+
+  const teamNameFor = (abbr) => (abbr === remainingGame.homeAbbr ? remainingGame.homeName : remainingGame.awayName);
+
+  const headerGroups = new Map();
+  for (const p of contenders) {
+    const key = `${p.currentWins}|${p.pick}`;
+    if (!headerGroups.has(key)) headerGroups.set(key, { wins: p.currentWins, pick: p.pick, names: [] });
+    headerGroups.get(key).names.push(p.name);
+  }
+  const headerLines = [...headerGroups.values()]
+    .sort((a, b) => b.wins - a.wins)
+    .map((g) => {
+      const nameStr =
+        g.names.length > 1 ? `${g.names.slice(0, -1).join(", ")} and ${g.names[g.names.length - 1]}` : g.names[0];
+      const verb = g.names.length > 1 ? "have" : "has";
+      const verb2 = g.names.length > 1 ? "all picked" : "picked";
+      return `${nameStr} ${verb} ${g.wins} wins and ${verb2} the ${teamNameFor(g.pick)}.`;
+    });
+
+  // Same single person wins regardless of the outcome — no need for two
+  // identical branch write-ups.
+  if (homeBranch.length === 1 && awayBranch.length === 1 && homeBranch[0].name === awayBranch[0].name) {
+    return [
+      headerLines.join(" "),
+      "",
+      `${homeBranch[0].name} has already clinched 1st place this week no matter how the remaining game goes.`,
+    ].join("\n");
+  }
+
+  const branchSection = (branchTiedGroup) => {
+    if (branchTiedGroup.length === 1) return `${branchTiedGroup[0].name} wins this week outright.`;
+    const withGuess = branchTiedGroup.filter((p) => Number.isFinite(p.guess));
+    const missing = branchTiedGroup.filter((p) => !Number.isFinite(p.guess));
+    const lines = buildBandLines(groupByGuess(withGuess.map((p) => ({ name: p.name, guess: p.guess }))));
+    if (missing.length) {
+      lines.push(
+        `(${missing.map((p) => p.name).join(", ")} tied but never submitted a tiebreaker number — check manually)`
+      );
+    }
+    return lines.join("\n");
+  };
+
+  return [
+    headerLines.join(" "),
+    "",
+    `If the ${remainingGame.homeName} win:`,
+    branchSection(homeBranch),
+    "",
+    `If the ${remainingGame.awayName} win:`,
+    branchSection(awayBranch),
+  ].join("\n");
 }
 
 // ---- Edit Picks modal ----
@@ -751,6 +861,10 @@ export default function AdminPage() {
   const [weeksList, setWeeksList] = useState([]);
   const [selectedWeekId, setSelectedWeekId] = useState(null);
   const [submittedUids, setSubmittedUids] = useState(new Set());
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapError, setRecapError] = useState(null);
+  const [recapText, setRecapText] = useState(null);
+  const [recapCopied, setRecapCopied] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [managingUser, setManagingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
@@ -943,6 +1057,117 @@ export default function AdminPage() {
     [weekKey]
   );
 
+  // Fetches the live scoreboard + this week's picks, confirms exactly one
+  // game remains (the whole point of this feature — before that, there are
+  // too many combinations for a two-branch email to describe), and builds
+  // the copy/paste text via the pure buildWeeklyRecapText above.
+  const generateWeeklyRecap = useCallback(async () => {
+    if (!selectedWeek || !weekKey) return;
+    setRecapLoading(true);
+    setRecapError(null);
+    setRecapText(null);
+    setRecapCopied(false);
+
+    try {
+      const seasontype = TYPE_MAP[selectedWeek.seasonType] ?? 2;
+      const [scoreRes, picksSnap] = await Promise.all([
+        fetch(
+          `/api/scoreboard?year=${selectedWeek.seasonYear}&week=${selectedWeek.value}&seasontype=${seasontype}`
+        ).then((r) => r.json()),
+        getDocs(query(collectionGroup(db, "weeks"), where("weekKey", "==", weekKey))),
+      ]);
+
+      const events = Array.isArray(scoreRes?.events) ? scoreRes.events : [];
+      if (!events.length) throw new Error("No games found for this week.");
+
+      const parsed = events
+        .map((event) => {
+          const comp = event?.competitions?.[0] ?? {};
+          const competitors = comp?.competitors || [];
+          const home = competitors.find((c) => c?.homeAway === "home") || {};
+          const away = competitors.find((c) => c?.homeAway === "away") || {};
+          const winnerComp = competitors.find((c) => c.winner);
+          return {
+            eventId: String(event?.id ?? ""),
+            gameDate: event?.date ?? null,
+            status: comp?.status?.type?.state,
+            homeAbbr: home?.team?.abbreviation,
+            awayAbbr: away?.team?.abbreviation,
+            homeName: home?.team?.shortDisplayName,
+            awayName: away?.team?.shortDisplayName,
+            // Picks store the team's shortDisplayName (see picks.jsx), not
+            // the abbreviation — match against that, same as everywhere
+            // else in the app that scores a week.
+            winnerName: winnerComp ? winnerComp.team.shortDisplayName : null,
+          };
+        })
+        .sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
+
+      const remaining = parsed.filter((e) => e.status !== "post");
+      if (remaining.length !== 1) {
+        throw new Error(
+          remaining.length === 0
+            ? "This week is already fully decided — no games remain."
+            : `This only works with exactly one game left. Currently ${remaining.length} remain this week.`
+        );
+      }
+      const remainingGame = remaining[0];
+
+      const usersByUid = new Map(users.map((u) => [u.uid, u]));
+      const participants = [];
+      picksSnap.forEach((docSnap) => {
+        const uid = docSnap.ref.parent.parent.id;
+        const data = docSnap.data();
+        let wins = 0;
+        let pickForRemaining = null;
+
+        for (const [eventID, pick] of Object.entries(data)) {
+          if (SYSTEM_FIELDS.includes(eventID)) continue;
+          if (eventID === remainingGame.eventId) {
+            pickForRemaining =
+              pick === remainingGame.homeName
+                ? remainingGame.homeAbbr
+                : pick === remainingGame.awayName
+                ? remainingGame.awayAbbr
+                : null;
+            continue;
+          }
+          const g = parsed.find((e) => e.eventId === eventID);
+          if (g?.winnerName && g.winnerName === pick) wins++;
+        }
+
+        const tb = Number(data.tieBreaker ?? NaN);
+        participants.push({
+          name: usersByUid.get(uid)?.displayName || data.displayName || "Unknown",
+          currentWins: wins,
+          pick: pickForRemaining, // null if they didn't pick this game — never matches either branch, harmless
+          guess: tb,
+        });
+      });
+
+      setRecapText(
+        buildWeeklyRecapText(participants, {
+          homeAbbr: remainingGame.homeAbbr,
+          awayAbbr: remainingGame.awayAbbr,
+          homeName: remainingGame.homeName,
+          awayName: remainingGame.awayName,
+        })
+      );
+    } catch (err) {
+      console.error("Recap generation failed:", err);
+      setRecapError(err.message || "Failed to generate recap.");
+    } finally {
+      setRecapLoading(false);
+    }
+  }, [selectedWeek, weekKey, users]);
+
+  const copyRecapToClipboard = useCallback(() => {
+    if (!recapText) return;
+    navigator.clipboard?.writeText(recapText);
+    setRecapCopied(true);
+    setTimeout(() => setRecapCopied(false), 2000);
+  }, [recapText]);
+
   if (adminStatus === "checking" || adminStatus === "not-admin") return null;
 
   return (
@@ -982,7 +1207,11 @@ export default function AdminPage() {
             {weeksList.length > 0 && (
               <select
                 value={selectedWeekId || ""}
-                onChange={(e) => setSelectedWeekId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedWeekId(e.target.value);
+                  setRecapText(null);
+                  setRecapError(null);
+                }}
                 className="w-full sm:w-auto px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 text-sm"
               >
                 {weeksList.map((w) => (
@@ -992,6 +1221,15 @@ export default function AdminPage() {
                 ))}
               </select>
             )}
+
+            <button
+              onClick={generateWeeklyRecap}
+              disabled={!selectedWeek || recapLoading}
+              title="Only works with exactly one game left this week"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold disabled:opacity-50"
+            >
+              <Megaphone size={16} /> {recapLoading ? "Generating…" : "Generate Weekly Recap"}
+            </button>
           </div>
         </header>
 
@@ -1018,6 +1256,36 @@ export default function AdminPage() {
                 {missingUsers.map((u) => u.displayName || u.uid).join(", ")}
               </div>
             )}
+          </div>
+        )}
+
+        {recapError && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            {recapError}
+          </div>
+        )}
+
+        {recapText && (
+          <div className="rounded-xl bg-white dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold flex items-center gap-2">
+                <Megaphone size={18} /> Weekly Recap
+              </h2>
+              <button
+                onClick={copyRecapToClipboard}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm font-semibold"
+              >
+                {recapCopied ? <Check size={15} /> : <Copy size={15} />}
+                {recapCopied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <textarea
+              readOnly
+              value={recapText}
+              rows={Math.min(20, recapText.split("\n").length + 1)}
+              className="w-full p-3 rounded-lg border border-zinc-300 dark:border-zinc-600 dark:bg-zinc-900 text-sm font-mono resize-y"
+              onClick={(e) => e.target.select()}
+            />
           </div>
         )}
 
