@@ -190,7 +190,9 @@ export default function LeaderboardPage() {
                   <tr>
                     <th className="text-left px-3 py-2 w-[36px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 sm:hidden w-[90px]">Wins • Pts</th>
+                    <th className="text-right px-3 py-2 sm:hidden w-[100px] whitespace-nowrap text-xs">
+                      Wins&nbsp;•&nbsp;Pts
+                    </th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[72px]">
                       <span className="sm:hidden">W</span><span className="hidden sm:inline">Wins</span>
                     </th>
@@ -264,7 +266,9 @@ export default function LeaderboardPage() {
                   <tr>
                     <th className="text-left px-3 py-2 w-[36px]">#</th>
                     <th className="text-left px-3 py-2">User Name</th>
-                    <th className="text-right px-3 py-2 sm:hidden w-[90px]">Wins • Pts</th>
+                    <th className="text-right px-3 py-2 sm:hidden w-[100px] whitespace-nowrap text-xs">
+                      Wins&nbsp;•&nbsp;Pts
+                    </th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[90px]">Total Wins</th>
                     <th className="hidden sm:table-cell text-right px-3 py-2 w-[80px]">Points</th>
                   </tr>

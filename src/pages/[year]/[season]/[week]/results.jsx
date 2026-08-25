@@ -617,9 +617,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
   };
 
   // Shared by both the portrait inline callout and the landscape click-through
-  // modal. Returns null when there's nothing to show (week fully decided).
+  // modal. Returns null when there's nothing to show (week fully decided, or
+  // — before any game has kicked off — nothing meaningful to say yet: with
+  // zero games played, everyone with any picks in is trivially "tied," and
+  // a lone/early participant reads as falsely "locked in for 1st" when the
+  // week has barely started).
   const getPathToFirst = (uid) => {
     if (remainingEventIDs.length === 0) return null;
+    if (totals.post === 0 && totals.live === 0) return null;
 
     const quickStatus = computeQuickStatus(uid);
 
