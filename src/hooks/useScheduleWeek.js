@@ -86,8 +86,16 @@ export default function useScheduleWeek(seasonId = "nfl-2026") {
         const idx = firstUncomputedIdx !== -1 ? firstUncomputedIdx : rows.length - 1;
         const display = rows[idx];
 
+        // Only meaningful within the same season type — rows[] is one
+        // combined ordered list spanning preseason then regular season, so
+        // at that boundary "previous row" is preseason's last week, not a
+        // real "regular season week 0". Reusing its raw ESPN value with the
+        // CURRENT week's seasonType produced nonsense like "Regular Week 4"
+        // as "last week" when the current week was actually Regular Week 1.
         const prevWeekValue =
-          idx > 0 && rows[idx - 1]?.value != null ? String(rows[idx - 1].value) : null;
+          idx > 0 && rows[idx - 1]?.value != null && rows[idx - 1]?.seasonType === display.seasonType
+            ? String(rows[idx - 1].value)
+            : null;
 
         const kickoffMs = display.firstGame?.getTime?.();
         const initialBeforeKickoff = typeof kickoffMs === "number" ? kickoffMs > Date.now() : false;

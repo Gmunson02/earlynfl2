@@ -215,8 +215,11 @@ export default function Dashboard() {
   // Routing helpers (always use ESPN value in regular season)
   const routeWeekPicks = value ?? "1";
   const routeWeekResultsThis = value ?? "1";
-  const routeWeekResultsPrev =
-    prevWeekValue ?? (value ? String(Math.max(1, Number(value) - 1)) : "1");
+  // null when there's no previous week in the same season type — the very
+  // first week overall, or the first week right after a pre/reg transition
+  // (see useScheduleWeek). No sound fallback exists for either case, so the
+  // button is disabled below rather than guessing at a week.
+  const routeWeekResultsPrev = prevWeekValue;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white px-6 py-4 pb-32">
@@ -356,6 +359,7 @@ export default function Dashboard() {
             icon={Clock}
             label="Last Week’s Results"
             color="amber"
+            disabled={!seasonYear || !seasonType || !routeWeekResultsPrev}
           />
           <ActionButton
             onClick={() => router.push("/leaderboard")}
