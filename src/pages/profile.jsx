@@ -35,10 +35,25 @@ function FamilyMembersCard({ ownerUid }) {
     };
   }, [ownerUid]);
 
+  // Case-insensitive, trimmed — catches "Helen" vs "helen " vs "HELEN" as
+  // the same person. Two family members with the same name under one owner
+  // is how duplicate profiles happened (nothing stopped someone from
+  // re-adding "Helen" a second time, e.g. after a confusing first attempt),
+  // and it's invisible until someone happens to notice two rows with the
+  // same picks-owner intent.
+  const isDuplicateName = (name, excludeId = null) => {
+    const key = name.trim().toLowerCase();
+    return members.some((m) => m.id !== excludeId && (m.displayName || "").trim().toLowerCase() === key);
+  };
+
   const handleAdd = async (e) => {
     e.preventDefault();
     const trimmed = newName.trim();
     if (!trimmed) return;
+    if (isDuplicateName(trimmed)) {
+      toast.error(`You already have a family member named "${trimmed}".`);
+      return;
+    }
     setAdding(true);
     try {
       const ref = doc(collection(db, "users"));
@@ -55,9 +70,14 @@ function FamilyMembersCard({ ownerUid }) {
   };
 
   const handleRename = async (id, newDisplayName) => {
+    const trimmed = newDisplayName.trim();
+    if (isDuplicateName(trimmed, id)) {
+      toast.error(`You already have a family member named "${trimmed}".`);
+      return;
+    }
     try {
-      await setDoc(doc(db, "users", id), { displayName: newDisplayName }, { merge: true });
-      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, displayName: newDisplayName } : m)));
+      await setDoc(doc(db, "users", id), { displayName: trimmed }, { merge: true });
+      setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, displayName: trimmed } : m)));
       toast.success("Renamed.");
     } catch (err) {
       console.error(err);

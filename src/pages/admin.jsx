@@ -998,33 +998,62 @@ export default function AdminPage() {
     }
   }, []);
 
-  const saveDisplayName = useCallback(async (uid, value) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, displayName: trimmed } : u)));
-    try {
-      await setDoc(doc(db, "users", uid), { displayName: trimmed }, { merge: true });
-    } catch (err) {
-      console.error("Display name save failed:", err);
-      alert("Failed to update display name — see console.");
-    }
-  }, []);
+  // Only used for renaming Family Member profiles (FamilyMembersModal).
+  // Duplicate names are only a concern within one owner's group — real,
+  // independent users sharing a display name is fine.
+  const saveDisplayName = useCallback(
+    async (uid, value) => {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const target = users.find((u) => u.uid === uid);
+      if (target?.managedBy) {
+        const key = trimmed.toLowerCase();
+        const dup = users.some(
+          (u) => u.uid !== uid && u.managedBy === target.managedBy && (u.displayName || "").trim().toLowerCase() === key
+        );
+        if (dup) {
+          alert(`This owner already has a family member named "${trimmed}".`);
+          return;
+        }
+      }
+      setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, displayName: trimmed } : u)));
+      try {
+        await setDoc(doc(db, "users", uid), { displayName: trimmed }, { merge: true });
+      } catch (err) {
+        console.error("Display name save failed:", err);
+        alert("Failed to update display name — see console.");
+      }
+    },
+    [users]
+  );
 
   const saveUserFields = useCallback(async (uid, fields) => {
     await setDoc(doc(db, "users", uid), fields, { merge: true });
     setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, ...fields } : u)));
   }, []);
 
-  const addFamilyMember = useCallback(async (ownerUid, displayName) => {
-    try {
-      const ref = doc(collection(db, "users"));
-      await setDoc(ref, { displayName, managedBy: ownerUid, isGuest: true, theme: "light" });
-      setUsers((prev) => [...prev, { uid: ref.id, displayName, managedBy: ownerUid, isGuest: true, theme: "light" }]);
-    } catch (err) {
-      console.error("Add family member failed:", err);
-      alert("Failed to add family member — see console.");
-    }
-  }, []);
+  const addFamilyMember = useCallback(
+    async (ownerUid, displayName) => {
+      const trimmed = displayName.trim();
+      const key = trimmed.toLowerCase();
+      const dup = users.some(
+        (u) => u.managedBy === ownerUid && (u.displayName || "").trim().toLowerCase() === key
+      );
+      if (dup) {
+        alert(`This owner already has a family member named "${trimmed}".`);
+        return;
+      }
+      try {
+        const ref = doc(collection(db, "users"));
+        await setDoc(ref, { displayName: trimmed, managedBy: ownerUid, isGuest: true, theme: "light" });
+        setUsers((prev) => [...prev, { uid: ref.id, displayName: trimmed, managedBy: ownerUid, isGuest: true, theme: "light" }]);
+      } catch (err) {
+        console.error("Add family member failed:", err);
+        alert("Failed to add family member — see console.");
+      }
+    },
+    [users]
+  );
 
   const removeFamilyMember = useCallback(async (uid) => {
     try {
