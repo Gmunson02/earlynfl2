@@ -193,18 +193,23 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
     let cachedPicks = null;
 
     const buildPicks = (weeksSnap) =>
-      weeksSnap.docs.map((docSnap) => {
-        const userData = docSnap.data();
-        return {
-          uid: docSnap.ref.parent.parent.id,
-          // Kept as a fallback for accounts whose profile doc is gone.
-          storedName: userData.displayName || null,
-          picks: Object.entries(userData)
-            .filter(([k]) => !PICK_DOC_SYSTEM_FIELDS.includes(k))
-            .map(([eventID, team]) => ({ eventID, teamName: team })),
-          tieBreaker: userData.tieBreaker || "",
-        };
-      });
+      weeksSnap.docs
+        // Auto-save writes this doc as the user picks, before Submit —
+        // only a formally submitted (locked) entry should ever show up
+        // here, per the league's all-or-nothing rule.
+        .filter((docSnap) => docSnap.data()?.locked === true)
+        .map((docSnap) => {
+          const userData = docSnap.data();
+          return {
+            uid: docSnap.ref.parent.parent.id,
+            // Kept as a fallback for accounts whose profile doc is gone.
+            storedName: userData.displayName || null,
+            picks: Object.entries(userData)
+              .filter(([k]) => !PICK_DOC_SYSTEM_FIELDS.includes(k))
+              .map(([eventID, team]) => ({ eventID, teamName: team })),
+            tieBreaker: userData.tieBreaker || "",
+          };
+        });
 
     const withCurrentNames = (picks, nameMap) =>
       picks.map((p) => ({

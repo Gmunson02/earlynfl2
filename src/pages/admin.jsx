@@ -1116,8 +1116,12 @@ export default function AdminPage() {
       const usersByUid = new Map(users.map((u) => [u.uid, u]));
       const participants = [];
       picksSnap.forEach((docSnap) => {
-        const uid = docSnap.ref.parent.parent.id;
         const data = docSnap.data();
+        // Auto-save writes this doc as the user picks, before Submit —
+        // only a formally submitted (locked) entry is a real contender,
+        // per the league's all-or-nothing rule.
+        if (data.locked !== true) return;
+        const uid = docSnap.ref.parent.parent.id;
         let wins = 0;
         let pickForRemaining = null;
 

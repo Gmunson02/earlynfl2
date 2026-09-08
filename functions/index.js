@@ -106,6 +106,13 @@ async function computeWeek(year, season, week) {
   for (const doc of weeksSnap.docs) {
     const userData = doc.data();
     if (!userData) continue;
+    // Auto-save writes this doc continuously as the user makes picks, well
+    // before they ever hit Submit — so an unsubmitted partial (or even
+    // single-pick) doc can exist and, once kickoff passes, is frozen there
+    // forever (Firestore rules block any further write after lock time,
+    // including a fix-up). Only a formally submitted (locked) entry counts,
+    // per the league's all-or-nothing rule.
+    if (userData.locked !== true) continue;
 
     let wins = 0;
     const tb = Number(userData.tieBreaker ?? NaN);

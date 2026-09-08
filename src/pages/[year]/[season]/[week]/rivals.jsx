@@ -80,6 +80,10 @@ export default function ComparePage() {
       const picks = [];
       for (const docSnap of weeksSnap.docs) {
         const userData = docSnap.data();
+        // Auto-save writes this doc as the user picks, before Submit — only
+        // a formally submitted (locked) entry should be comparable here,
+        // per the league's all-or-nothing rule.
+        if (userData.locked !== true) continue;
         const uid = docSnap.ref.parent.parent.id;
         const entries = Object.entries(userData)
           .filter(([k]) => !["tieBreaker", "displayName", "locked", "submittedAt", "lastEditedAt", "weekKey"].includes(k))
