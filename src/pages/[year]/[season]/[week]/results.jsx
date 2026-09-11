@@ -248,7 +248,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
           return { ...entry, winnerCount, picksMap };
         });
 
-        enriched.sort((a, b) => b.winnerCount - a.winnerCount);
+        // Rank first, then alphabetically within a tied rank — with 50+
+        // people in the pool now, a scan for one name needs a predictable
+        // secondary order, not whatever order Firestore happened to return.
+        enriched.sort(
+          (a, b) =>
+            b.winnerCount - a.winnerCount ||
+            (a.displayName || "").localeCompare(b.displayName || "")
+        );
         let lastWins = null, rank = 0, skip = 1;
         const ranked = enriched.map((entry) => {
           if (entry.winnerCount !== lastWins) { rank += skip; skip = 1; } else { skip++; }
