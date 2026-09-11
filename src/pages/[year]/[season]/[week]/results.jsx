@@ -4,7 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collectionGroup, getDocs, query, where } from "firebase/firestore";
 import Image from "next/image";
 import Head from "next/head";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, LocateFixed } from "lucide-react";
 import { fetchDisplayNameMap } from "../../../../lib/liveDisplayNames";
 import { getScoreboard } from "../../../../lib/espnScoreboard";
 import { getWeekLabel } from "../../../../lib/weekLabels";
@@ -146,8 +146,16 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
 
   const [lastUpdated, setLastUpdated] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [myUid, setMyUid] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // "Find Me": scrolls to and briefly highlights the signed-in user's own
+  // row. rowRefs is keyed by uid so it works for both the landscape table
+  // and the portrait card list — whichever is actually rendered.
+  const rowRefs = useRef(new Map());
+  const [highlightUid, setHighlightUid] = useState(null);
+  const highlightTimer = useRef(null);
 
   // Portrait-only: which users' pick grids are expanded
   const [expandedUsers, setExpandedUsers] = useState(new Set());
@@ -176,11 +184,14 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
   // Wait for the signed-in session to restore before querying Firestore,
   // otherwise a fresh page load can fire the query while logged out.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, () => {
+    const unsub = onAuthStateChanged(auth, (u) => {
       setAuthReady(true);
+      setMyUid(u?.uid || null);
     });
     return unsub;
   }, []);
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), []);
 
   useEffect(() => {
     if (!year || !week || !season || !authReady) return;
@@ -578,6 +589,26 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
   }, [uniqueEventIDs, eventMap]);
 
   const hasScoreboard = Object.keys(eventMap).length > 0;
+  const myRowVisible = myUid && submissions.some((s) => s.uid === myUid);
+
+  const findMe = () => {
+    if (!myUid) return;
+    const el = rowRefs.current.get(myUid);
+    if (!el) return;
+
+    // Portrait card list: expand the row too, so "find me" actually shows
+    // their picks instead of just landing on a collapsed name.
+    setExpandedUsers((prev) => (prev.has(myUid) ? prev : new Set(prev).add(myUid)));
+
+    // Vertical-only, centered — doesn't disturb horizontal scroll position
+    // on the landscape table.
+    const y = el.getBoundingClientRect().top + window.scrollY - window.innerHeight / 2;
+    window.scrollTo({ top: y, behavior: "smooth" });
+
+    setHighlightUid(myUid);
+    clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightUid(null), 2600);
+  };
 
   if (loadError && !lastUpdated && !hasScoreboard) {
     return (
@@ -819,10 +850,23 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
           {weekLabel || "Scores"}
         </h1>
 
-        <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {submissions.length} total participants
-          {" • "}
-          {lastUpdated ? `Last Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
+        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+          <span>
+            {submissions.length} total participants
+            {" • "}
+            {lastUpdated ? `Last Updated ${lastUpdated.toLocaleTimeString()}` : "—"}
+          </span>
+
+          {myRowVisible && (
+            <button
+              type="button"
+              onClick={findMe}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+            >
+              <LocateFixed size={16} />
+              Find Me
+            </button>
+          )}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
@@ -909,11 +953,25 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
               </tr>
             )}
             {submissions.map((entry, index) => {
-              const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+              const isHighlighted = entry.uid === highlightUid;
+              // transition-colors stays on regardless of state so both the
+              // highlight snapping on AND its fade back out are animated,
+              // not just one direction.
+              const rowBg = `${
+                isHighlighted
+                  ? "bg-amber-200 dark:bg-amber-500/30"
+                  : index % 2 === 0
+                  ? "bg-white dark:bg-zinc-900"
+                  : "bg-gray-50 dark:bg-zinc-800"
+              } transition-colors duration-700`;
               const picksMap = entry.picksMap;
 
               return (
-                <tr key={entry.uid} className={rowBg}>
+                <tr
+                  key={entry.uid}
+                  ref={(el) => rowRefs.current.set(entry.uid, el)}
+                  className={rowBg}
+                >
                   <td
                     className={`${W_USER} py-1 sticky left-0 z-10 font-bold ${rowBg} ${borderClass} truncate whitespace-nowrap cursor-pointer hover:underline`}
                     style={{ paddingLeft: "max(0.5rem, env(safe-area-inset-left))", paddingRight: "0.5rem" }}
@@ -999,12 +1057,20 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
               </tr>
             )}
             {submissions.map((entry, index) => {
-              const rowBg = index % 2 === 0 ? "bg-white dark:bg-zinc-900" : "bg-gray-50 dark:bg-zinc-800";
+              const isHighlighted = entry.uid === highlightUid;
+              const rowBg = `${
+                isHighlighted
+                  ? "bg-amber-200 dark:bg-amber-500/30"
+                  : index % 2 === 0
+                  ? "bg-white dark:bg-zinc-900"
+                  : "bg-gray-50 dark:bg-zinc-800"
+              } transition-colors duration-700`;
               const isOpen = expandedUsers.has(entry.uid);
 
               return (
                 <Fragment key={entry.uid}>
                   <tr
+                    ref={(el) => rowRefs.current.set(entry.uid, el)}
                     className={`${rowBg} cursor-pointer`}
                     onClick={() => toggleExpanded(entry.uid)}
                   >
