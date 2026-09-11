@@ -151,9 +151,12 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
   const [reloadKey, setReloadKey] = useState(0);
 
   // "Find Me": scrolls to and briefly highlights the signed-in user's own
-  // row. rowRefs is keyed by uid so it works for both the landscape table
-  // and the portrait card list — whichever is actually rendered.
-  const rowRefs = useRef(new Map());
+  // row. Both the landscape table and portrait card list are always mounted
+  // (CSS just hides one of them via landscape:/portrait: variants), so they
+  // need separate ref maps — a single shared map keyed by uid would have the
+  // later-rendered block's ref callback silently overwrite the earlier one.
+  const landscapeRowRefs = useRef(new Map());
+  const portraitRowRefs = useRef(new Map());
   const [highlightUid, setHighlightUid] = useState(null);
   const highlightTimer = useRef(null);
 
@@ -593,7 +596,18 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
 
   const findMe = () => {
     if (!myUid) return;
-    const el = rowRefs.current.get(myUid);
+
+    // Pick whichever table is actually visible — the other is mounted but
+    // hidden via CSS, and offsetParent is null for anything with
+    // display:none (or an ancestor that does).
+    const landscapeEl = landscapeRowRefs.current.get(myUid);
+    const portraitEl = portraitRowRefs.current.get(myUid);
+    const el =
+      landscapeEl && landscapeEl.offsetParent
+        ? landscapeEl
+        : portraitEl && portraitEl.offsetParent
+        ? portraitEl
+        : landscapeEl || portraitEl;
     if (!el) return;
 
     // Portrait card list: expand the row too, so "find me" actually shows
@@ -969,7 +983,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
               return (
                 <tr
                   key={entry.uid}
-                  ref={(el) => rowRefs.current.set(entry.uid, el)}
+                  ref={(el) => landscapeRowRefs.current.set(entry.uid, el)}
                   className={rowBg}
                 >
                   <td
@@ -1070,7 +1084,7 @@ export default function ScoresPage({ year, week, season, ssrEventMap, ssrWinners
               return (
                 <Fragment key={entry.uid}>
                   <tr
-                    ref={(el) => rowRefs.current.set(entry.uid, el)}
+                    ref={(el) => portraitRowRefs.current.set(entry.uid, el)}
                     className={`${rowBg} cursor-pointer`}
                     onClick={() => toggleExpanded(entry.uid)}
                   >
