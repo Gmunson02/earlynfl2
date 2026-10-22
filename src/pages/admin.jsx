@@ -1286,7 +1286,7 @@ export default function AdminPage() {
                     : "Kickoff has passed — "}
                   Still need picks from:
                 </span>{" "}
-                {missingUsers.map((u) => u.displayName || u.uid).join(", ")}
+                {[...new Set(missingUsers.map((u) => (u.displayName || u.uid).trim()))].join(", ")}
               </div>
             )}
           </div>
