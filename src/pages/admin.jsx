@@ -878,6 +878,43 @@ export default function AdminPage() {
     [users]
   );
 
+  // Display-only: users sharing an identical display name collapse under one
+  // group header (collapsed by default). Nothing here touches the data.
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+  const toggleGroup = useCallback((key) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const flatRows = useMemo(() => {
+    const keyOf = (u) => (u.displayName || "").trim().toLowerCase();
+    const counts = new Map();
+    sortedUsers.forEach((u) => counts.set(keyOf(u), (counts.get(keyOf(u)) || 0) + 1));
+
+    const rows = [];
+    const seen = new Set();
+    sortedUsers.forEach((u) => {
+      const key = keyOf(u);
+      const count = counts.get(key);
+      if (!key || count < 2) {
+        rows.push({ kind: "user", u, grouped: false });
+        return;
+      }
+      if (!seen.has(key)) {
+        seen.add(key);
+        const members = sortedUsers.filter((m) => keyOf(m) === key);
+        const open = expandedGroups.has(key);
+        rows.push({ kind: "group", key, name: (u.displayName || "").trim(), count, open, members });
+        if (open) members.forEach((m) => rows.push({ kind: "user", u: m, grouped: true }));
+      }
+    });
+    return rows;
+  }, [sortedUsers, expandedGroups]);
+
   const toggleExpanded = useCallback((uid) => {
     setExpandedUids((prev) => {
       const next = new Set(prev);
@@ -1352,7 +1389,28 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedUsers.map((u, idx) => {
+                {flatRows.map((row, idx) => {
+                  if (row.kind === "group") {
+                    const submittedCount = row.members.filter((m) => submittedUids.has(m.uid)).length;
+                    return (
+                      <tr
+                        key={`group-${row.key}`}
+                        onClick={() => toggleGroup(row.key)}
+                        className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                      >
+                        <td colSpan={9} className="px-3 py-2 font-semibold">
+                          <span className="inline-flex items-center gap-2">
+                            {row.open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            {row.name}
+                            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                              {row.count} accounts • {submittedCount} submitted
+                            </span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const u = row.u;
                   const l = ledger[u.uid] || {};
                   const submitted = submittedUids.has(u.uid);
                   const startingBalance = Number(l.startingBalance) || 0;
@@ -1361,7 +1419,7 @@ export default function AdminPage() {
                   const currentBalance = startingBalance - duesOwed + winnings;
                   return (
                     <tr key={u.uid} className={idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}>
-                      <td className="px-3 py-2 font-semibold whitespace-nowrap">
+                      <td className={`py-2 font-semibold whitespace-nowrap ${row.grouped ? "pl-9 pr-3" : "px-3"}`}>
                         {u.displayName || "—"}
                         {u.managedBy ? (
                           <span className="ml-2 text-[10px] uppercase tracking-wide text-purple-600 dark:text-purple-400 font-bold">
@@ -1454,7 +1512,26 @@ export default function AdminPage() {
 
         {!loading && (
           <div className="sm:hidden flex flex-col gap-2">
-            {sortedUsers.map((u) => {
+            {flatRows.map((row) => {
+              if (row.kind === "group") {
+                const submittedCount = row.members.filter((m) => submittedUids.has(m.uid)).length;
+                return (
+                  <button
+                    key={`group-${row.key}`}
+                    onClick={() => toggleGroup(row.key)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20"
+                  >
+                    <span className="flex items-center gap-2 font-semibold">
+                      {row.open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                      {row.name}
+                    </span>
+                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                      {row.count} accounts • {submittedCount} submitted
+                    </span>
+                  </button>
+                );
+              }
+              const u = row.u;
               const l = ledger[u.uid] || {};
               const submitted = submittedUids.has(u.uid);
               const startingBalance = Number(l.startingBalance) || 0;
