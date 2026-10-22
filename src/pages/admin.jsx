@@ -1396,13 +1396,13 @@ export default function AdminPage() {
                       <tr
                         key={`group-${row.key}`}
                         onClick={() => toggleGroup(row.key)}
-                        className="cursor-pointer bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                        className={`cursor-pointer ${idx % 2 ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-white dark:bg-zinc-800/60"}`}
                       >
                         <td colSpan={9} className="px-3 py-2 font-semibold">
                           <span className="inline-flex items-center gap-2">
                             {row.open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                             {row.name}
-                            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                            <span className="text-xs font-normal text-zinc-500">
                               {row.count} accounts • {submittedCount} submitted
                             </span>
                           </span>
@@ -1519,13 +1519,13 @@ export default function AdminPage() {
                   <button
                     key={`group-${row.key}`}
                     onClick={() => toggleGroup(row.key)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-800/70 rounded-xl border border-zinc-200 dark:border-zinc-700"
                   >
                     <span className="flex items-center gap-2 font-semibold">
                       {row.open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                       {row.name}
                     </span>
-                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                    <span className="text-xs text-zinc-500">
                       {row.count} accounts • {submittedCount} submitted
                     </span>
                   </button>
